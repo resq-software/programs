@@ -1,196 +1,176 @@
-<h1 align="center">resQ Programs</h1>
+# ResQ Programs
 
-<p align="center">
-  Solana Anchor on-chain programs for decentralised airspace management and autonomous delivery coordination.
-</p>
+[![CI](https://img.shields.io/github/actions/workflow/status/resq-software/programs/ci.yml?branch=main&label=ci&style=flat-square)](https://github.com/resq-software/programs/actions/workflows/ci.yml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](./LICENSE)
 
-<p align="center">
-  <a href="https://github.com/resq-software/programs/actions/workflows/ci.yml">
-    <img src="https://img.shields.io/github/actions/workflow/status/resq-software/programs/ci.yml?branch=main&label=ci&style=flat-square" alt="CI" />
-  </a>
-  <a href="./LICENSE">
-    <img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square" alt="License: Apache-2.0" />
-  </a>
-</p>
+ResQ Programs is the decentralized coordination layer for autonomous aerospace and delivery operations. Built using [Anchor 0.30](https://www.anchor-lang.com/), these Solana on-chain programs enforce geofencing, permit issuance, and mission lifecycle management.
 
 ---
 
 ## Table of Contents
 
-- [Overview](#overview)
-- [Programs](#programs)
-- [Install](#install)
-- [Quick Start](#quick-start)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [Contributing](#contributing)
-- [Changelog](#changelog)
-- [License](#license)
+1. [Overview](#overview)
+2. [Features](#features)
+3. [Architecture](#architecture)
+4. [Quick Start](#quick-start)
+5. [Usage](#usage)
+6. [Configuration](#configuration)
+7. [API Overview](#api-overview)
+8. [Development](#development)
+9. [Contributing](#contributing)
+10. [Roadmap](#roadmap)
+11. [License](#license)
 
 ---
 
 ## Overview
 
-ResQ Programs are [Anchor](https://www.anchor-lang.com/) 0.30 on-chain programs deployed to the Solana blockchain. They form the decentralised backbone of the ResQ coordination layer — enforcing airspace rules and managing autonomous delivery missions without a central authority.
+ResQ Programs provide the trust-minimized substrate for physical automation. By offloading rule enforcement to the Solana blockchain, the ResQ ecosystem ensures that air traffic protocols and delivery missions are immutable, transparent, and verifiable by all stakeholders.
 
-**Related projects:**
-
-| Repo | Description |
-|------|-------------|
-| [resq-software/resQ](https://github.com/resq-software/resQ) | Core platform monorepo |
-| [resq-software/cli](https://github.com/resq-software/cli) | CLI tooling |
-| [resq-software/dotnet-sdk](https://github.com/resq-software/dotnet-sdk) | .NET SDK |
+### Key Components
+* **`resq-airspace`**: Governs access control to physical airspace. Handles zone registration, policy updates, and flight permit granting.
+* **`resq-delivery`**: Manages the mission-critical state of autonomous delivery vehicles, including status tracking and delivery confirmation.
 
 ---
 
-## Programs
+## Features
 
-| Program | Address (localnet) | Description |
-|---------|-------------------|-------------|
-| `resq-airspace` | `A1rSpAcE111...` | On-chain airspace zone registry and access control |
-| `resq-delivery` | `DeL1v3ry111...` | Autonomous delivery mission lifecycle management |
+* **Proof-of-Permit**: Cryptographically enforce that only authorized drones operate in restricted airspace.
+* **Autonomous Lifecycle**: Atomic state transitions for delivery missions (Created -> In-Transit -> Completed).
+* **Policy-as-Code**: Airspace policies (altitude, time-of-day, proximity) are enforced by on-chain logic.
+* **Auditable History**: Every crossing and delivery is recorded on-chain for regulatory compliance.
 
 ---
 
-## Install
+## Architecture
 
-### Prerequisites
+The following diagram illustrates the relationship between the programs and the Solana state accounts.
 
-| Tool | Version | Install |
-|------|---------|---------|
-| Rust | stable | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` |
-| Solana CLI | 2.1.0 | `sh -c "$(curl -sSfL https://release.anza.xyz/v2.1.0/install)"` |
-| Anchor CLI | 0.30.1 | `cargo install --git https://github.com/coral-xyz/anchor avm --locked && avm install 0.30.1 && avm use 0.30.1` |
-| Bun | latest | `curl -fsSL https://bun.sh/install \| bash` |
-
-### All-in-one (Nix + setup script)
-
-```sh
-git clone https://github.com/resq-software/programs.git
-cd programs
-./scripts/setup.sh   # installs Nix + Docker; installs Solana CLI + Anchor; generates keypair
-```
-
-`scripts/setup.sh` handles all prerequisites. Solana CLI and Anchor are not in nixpkgs; the script installs them via their official installers after entering the Nix dev shell.
-
-### Docker (CI / artifact build)
-
-```sh
-docker build -t resq-programs .
-# Extract built .so and IDL files:
-docker run --rm -v $(pwd)/dist:/app/target resq-programs
+```mermaid
+graph TD
+    User((Authority/Operator)) -->|Instructions| Airspace[resq-airspace]
+    User -->|Instructions| Delivery[resq-delivery]
+    
+    subgraph "On-Chain Programs"
+        Airspace -->|Updates| SA[AirspaceAccount]
+        Airspace -->|Issues| SP[Permit]
+        Delivery -->|Records| DR[DeliveryRecord]
+    end
+    
+    SA -.->|Policy Verification| Delivery
 ```
 
 ---
 
 ## Quick Start
 
-```sh
-# Build all programs
+### Prerequisites
+* **Rust**: `stable`
+* **Solana CLI**: `2.1.0`
+* **Anchor CLI**: `0.30.1`
+
+### Execution
+```bash
+# Clone and setup environment
+git clone https://github.com/resq-software/programs.git
+cd programs
+./scripts/setup.sh
+
+# Compile programs
 anchor build
 
-# Run tests against a local validator
+# Execute integration tests
 anchor test
-
-# Deploy to devnet
-anchor deploy --provider.cluster devnet
 ```
 
 ---
 
 ## Usage
 
-### Airspace program
+### 1. Registering Airspace
+Defining a new zone requires an authority account to initialize the account state.
 
 ```typescript
-import * as anchor from "@coral-xyz/anchor";
-import { ResqAirspace } from "../target/types/resq_airspace";
-
-const program = anchor.workspace.ResqAirspace as anchor.Program<ResqAirspace>;
-
-// Register an airspace zone
-await program.methods
-  .registerZone({ lat: 37.77, lon: -122.41, radius: 500 })
+const tx = await program.methods
+  .initializeProperty({ lat: 45.5, lon: -122.6, radius: 100 })
   .accounts({ authority: wallet.publicKey })
   .rpc();
 ```
 
-### Delivery program
+### 2. Recording a Delivery
+Updates the delivery state upon a successful drop-off event.
 
 ```typescript
-import { ResqDelivery } from "../target/types/resq_delivery";
-
-const delivery = anchor.workspace.ResqDelivery as anchor.Program<ResqDelivery>;
-
-// Create a mission
 await delivery.methods
-  .createMission(missionId, payload)
-  .accounts({ operator: wallet.publicKey })
+  .recordDelivery(deliveryId, { status: "COMPLETED" })
+  .accounts({ operator: pilot.publicKey })
   .rpc();
 ```
-
-Full IDL and TypeScript types are generated by `anchor build` into `target/idl/` and `target/types/`.
 
 ---
 
 ## Configuration
 
-| File | Description |
-|------|-------------|
-| `Anchor.toml` | Cluster, wallet path, and program addresses per environment |
-| `~/.config/solana/id.json` | Local wallet keypair (generated by `scripts/setup.sh`) |
+The project behavior is defined in `Anchor.toml`. Key configurations include:
 
-```toml
-[provider]
-cluster = "Localnet"          # or "Devnet", "Mainnet"
-wallet   = "~/.config/solana/id.json"
+* **Cluster**: Set to `Localnet` for development and `Devnet` for testing against public nodes.
+* **Environment Variables**:
+    * `SOLANA_VERSION`: Overrides the default `2.1.0`.
+    * `ANCHOR_VERSION`: Overrides the default `0.30.1`.
+
+---
+
+## API Overview
+
+### `resq-airspace`
+* `initialize_property`: Sets up a new geo-fenced region.
+* `grant_permit`: Allows a specific public key to access a region.
+* `update_policy`: Adjusts rules for an existing region.
+* `record_crossing`: Log entry for a vehicle entering/exiting an airspace.
+
+### `resq-delivery`
+* `record_delivery`: Finalizes a delivery mission state.
+* `update_status`: Adjusts mission state (In Transit, Failed, Completed).
+
+---
+
+## Development
+
+### Testing
+Tests are located in `resq-airspace/tests` and `resq-delivery/tests`. They use `solana-test-validator` to mock the environment. Run with:
+```bash
+anchor test
 ```
 
-| Environment variable | Default | Description |
-|----------------------|---------|-------------|
-| `SOLANA_VERSION` | `2.1.0` | Overrides the Solana CLI version installed by `scripts/setup.sh` |
-| `ANCHOR_VERSION` | `0.30.1` | Overrides the Anchor CLI version installed by `scripts/setup.sh` |
+### Git Hooks
+The repository includes pre-configured hooks in `.git-hooks/`. To enable them, ensure they are symlinked or copied to your local `.git/hooks` directory. These enforce:
+- Commit message linting
+- CI-passing checks before push
+- Formatting compliance
 
 ---
 
 ## Contributing
 
-We welcome contributions. Please read [`CONTRIBUTING.md`](./CONTRIBUTING.md) before opening a PR.
+We strictly follow [Conventional Commits](https://www.conventionalcommits.org/).
 
-**Local setup:**
+1. **Fork** the repository.
+2. **Feature branch**: `feat/your-feature` or `fix/your-fix`.
+3. **Audit**: Run the provided audit tools (see `.github/skills/`).
+4. **Pull Request**: Ensure CI passes all checks.
 
-```sh
-git clone https://github.com/resq-software/programs.git
-cd programs
-./scripts/setup.sh
-```
-
-**Run tests:**
-
-```sh
-anchor test
-```
-
-**Commit convention:** This project uses [Conventional Commits](https://www.conventionalcommits.org/).
-All PRs must follow the `type(scope): subject` format — see the table below.
-
-| Prefix | Effect on version |
-|--------|------------------|
-| `feat:` | Minor bump (`0.x.0`) |
-| `fix:` / `perf:` | Patch bump (`0.0.x`) |
-| `BREAKING CHANGE` footer or `!` suffix | Major bump (`x.0.0`) |
-| `docs:` `style:` `refactor:` `test:` `chore:` | No version bump |
+Refer to `CONTRIBUTING.md` for complete guidelines on security audits and protocol additions.
 
 ---
 
-## Changelog
+## Roadmap
 
-See [CHANGELOG.md](./CHANGELOG.md) for the full release history.
+- [ ] **Q3 2026**: Transition to Anchor 0.31+ compatibility.
+- [ ] **Q4 2026**: Implement cross-program invocation (CPI) for automated airspace entry/exit tolls.
+- [ ] **Q1 2027**: Zero-Knowledge Proof (ZKP) integration for anonymous permit verification.
 
 ---
 
 ## License
 
-Copyright 2026 ResQ
-
-Licensed under the [Apache License, Version 2.0](./LICENSE).
+Copyright 2026 ResQ. Distributed under the Apache License, Version 2.0. See [LICENSE](./LICENSE) for details.
