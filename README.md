@@ -3,83 +3,79 @@
 [![CI](https://img.shields.io/github/actions/workflow/status/resq-software/programs/ci.yml?branch=main&label=ci&style=flat-square)](https://github.com/resq-software/programs/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](./LICENSE)
 
-ResQ Programs is the decentralized coordination layer for autonomous aerospace and delivery operations. Built using [Anchor 0.30](https://www.anchor-lang.com/), these Solana on-chain programs enforce geofencing, permit issuance, and mission lifecycle management.
-
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Features](#features)
-3. [Architecture](#architecture)
-4. [Quick Start](#quick-start)
-5. [Usage](#usage)
-6. [Configuration](#configuration)
-7. [API Overview](#api-overview)
-8. [Development](#development)
-9. [Contributing](#contributing)
-10. [Roadmap](#roadmap)
-11. [License](#license)
+ResQ Programs is the decentralized coordination layer for autonomous aerospace and delivery operations. Built using [Anchor 0.32](https://www.anchor-lang.com/), these Solana on-chain programs enforce geofencing, permit issuance, and mission lifecycle management through trust-minimized, atomic state transitions.
 
 ---
 
 ## Overview
 
-ResQ Programs provide the trust-minimized substrate for physical automation. By offloading rule enforcement to the Solana blockchain, the ResQ ecosystem ensures that air traffic protocols and delivery missions are immutable, transparent, and verifiable by all stakeholders.
+ResQ Programs provide the trust-minimized substrate for physical automation. By offloading rule enforcement to the Solana blockchain, the ResQ ecosystem ensures that air traffic protocols and delivery missions are immutable, transparent, and verifiable.
 
 ### Key Components
-* **`resq-airspace`**: Governs access control to physical airspace. Handles zone registration, policy updates, and flight permit granting.
-* **`resq-delivery`**: Manages the mission-critical state of autonomous delivery vehicles, including status tracking and delivery confirmation.
+* **`resq-airspace`**: Governs physical airspace access. It manages zone registration, access policies (Open, Permit, Deny, Auction), and cryptographic permit issuance.
+* **`resq-delivery`**: Manages the mission-critical state of autonomous delivery vehicles, including immutable proof-of-delivery logging and coordinate validation.
 
 ---
 
 ## Features
 
 * **Proof-of-Permit**: Cryptographically enforce that only authorized drones operate in restricted airspace.
-* **Autonomous Lifecycle**: Atomic state transitions for delivery missions (Created -> In-Transit -> Completed).
-* **Policy-as-Code**: Airspace policies (altitude, time-of-day, proximity) are enforced by on-chain logic.
+* **Autonomous Lifecycle**: Atomic state transitions for delivery missions.
+* **Policy-as-Code**: Airspace policies (altitude, geofencing, proximity) are enforced by on-chain logic.
 * **Auditable History**: Every crossing and delivery is recorded on-chain for regulatory compliance.
 
 ---
 
 ## Architecture
 
-The following diagram illustrates the relationship between the programs and the Solana state accounts.
+The system utilizes Program-Derived Addresses (PDAs) for state management. Permissions are granted via PDA-based `Permit` accounts, which are checked by the `resq-airspace` program before processing crossing events.
 
 ```mermaid
-graph TD
-    User((Authority/Operator)) -->|Instructions| Airspace[resq-airspace]
-    User -->|Instructions| Delivery[resq-delivery]
-    
-    subgraph "On-Chain Programs"
-        Airspace -->|Updates| SA[AirspaceAccount]
-        Airspace -->|Issues| SP[Permit]
-        Delivery -->|Records| DR[DeliveryRecord]
-    end
-    
-    SA -.->|Policy Verification| Delivery
+c4Context
+    title System Context Diagram
+    Person(operator, "Authority/Operator")
+    System_Boundary(solana, "Solana Network") {
+        System(airspace, "resq-airspace", "Zone & Permit Logic")
+        System(delivery, "resq-delivery", "Mission & Proof Logic")
+        System_Ext(state, "Solana State Accounts", "PDAs & Account Data")
+    }
+    Rel(operator, airspace, "Initializes Property/Grants Permit")
+    Rel(operator, delivery, "Records Delivery Mission")
+    Rel(airspace, state, "Writes AirspaceAccount/Permit")
+    Rel(delivery, state, "Writes DeliveryRecord")
+    Rel(delivery, airspace, "Verifies Permit via CPI")
+```
+
+---
+
+## Installation
+
+### Prerequisites
+* **Rust**: `stable` (via `rustup`)
+* **Solana CLI**: `2.1.0`
+* **Anchor CLI**: `0.30.1`
+
+### Execution
+```bash
+# Clone the repository
+git clone https://github.com/resq-software/programs.git
+cd programs
+
+# Bootstrap environment (installs dependencies/hooks)
+./bootstrap.sh
+
+# Build programs
+anchor build
 ```
 
 ---
 
 ## Quick Start
 
-### Prerequisites
-* **Rust**: `stable`
-* **Solana CLI**: `2.1.0`
-* **Anchor CLI**: `0.30.1`
+Execute integration tests to verify the deployment state:
 
-### Execution
 ```bash
-# Clone and setup environment
-git clone https://github.com/resq-software/programs.git
-cd programs
-./scripts/setup.sh
-
-# Compile programs
-anchor build
-
-# Execute integration tests
+# Compile and run test suite against solana-test-validator
 anchor test
 ```
 
@@ -87,23 +83,24 @@ anchor test
 
 ## Usage
 
-### 1. Registering Airspace
-Defining a new zone requires an authority account to initialize the account state.
+### Registering Airspace
+To initialize a restricted zone, an owner must provide a unique 32-byte identifier and define altitude bounds.
 
 ```typescript
+const propertyId = [...Buffer.from("zone-nyc-01").padEnd(32, '\0')];
 const tx = await program.methods
-  .initializeProperty({ lat: 45.5, lon: -122.6, radius: 100 })
-  .accounts({ authority: wallet.publicKey })
+  .initializeProperty(propertyId, 10, 150, [[...]], 1, { permit: {} }, 0, treasuryKey)
+  .accounts({ owner: wallet.publicKey })
   .rpc();
 ```
 
-### 2. Recording a Delivery
-Updates the delivery state upon a successful drop-off event.
+### Recording a Delivery
+Finalize a mission by logging the proof-of-delivery CID and GPS coordinates.
 
 ```typescript
 await delivery.methods
-  .recordDelivery(deliveryId, { status: "COMPLETED" })
-  .accounts({ operator: pilot.publicKey })
+  .recordDelivery(cidBytes, lat, lon, alt, Date.now())
+  .accounts({ drone: pilot.publicKey })
   .rpc();
 ```
 
@@ -111,42 +108,38 @@ await delivery.methods
 
 ## Configuration
 
-The project behavior is defined in `Anchor.toml`. Key configurations include:
+Settings are managed in `Anchor.toml`. 
 
-* **Cluster**: Set to `Localnet` for development and `Devnet` for testing against public nodes.
-* **Environment Variables**:
-    * `SOLANA_VERSION`: Overrides the default `2.1.0`.
-    * `ANCHOR_VERSION`: Overrides the default `0.30.1`.
+* **`[programs.localnet]`**: Defines custom Program IDs. Ensure these match the `declare_id!` macro in your Rust code.
+* **`[provider]`**: Configures the default wallet and cluster.
+* **Environment Overrides**:
+    * `SOLANA_VERSION`: Ensure the CLI version matches the `Cargo.toml` dependencies.
+    * `ANCHOR_VERSION`: Uses `AVM` to manage cross-version compatibility for the `0.30.x` lineage.
 
 ---
 
-## API Overview
+## API Reference
 
 ### `resq-airspace`
-* `initialize_property`: Sets up a new geo-fenced region.
-* `grant_permit`: Allows a specific public key to access a region.
-* `update_policy`: Adjusts rules for an existing region.
-* `record_crossing`: Log entry for a vehicle entering/exiting an airspace.
+* **`initialize_property`**: Sets up the geometry and access policy for a region.
+* **`grant_permit`**: Creates a `Permit` PDA for a specific drone key.
+* **`record_crossing`**: Validates a transit attempt. If `AccessPolicy::Permit` is active, it performs a cross-program check on the drone's `Permit` account.
 
 ### `resq-delivery`
-* `record_delivery`: Finalizes a delivery mission state.
-* `update_status`: Adjusts mission state (In Transit, Failed, Completed).
+* **`record_delivery`**: Creates an immutable `DeliveryRecord`.
+* **Constraint Logic**: Validates coordinate ranges (lat: -90° to 90°, lon: -180° to 180°) and ensures `delivered_at` is a positive timestamp.
 
 ---
 
 ## Development
 
-### Testing
-Tests are located in `resq-airspace/tests` and `resq-delivery/tests`. They use `solana-test-validator` to mock the environment. Run with:
-```bash
-anchor test
-```
+### Error Handling
+Errors are defined via `#[error_code]` enums in each program (e.g., `AirspaceError`, `DeliveryError`). 
+- **Constraint Violations**: Anchor macros (`has_one`, `seeds`, etc.) return standard `Account` errors if validation fails.
+- **Custom Logic**: Use the `require!` and `require_keys_eq!` macros to return descriptive errors to the client.
 
-### Git Hooks
-The repository includes pre-configured hooks in `.git-hooks/`. To enable them, ensure they are symlinked or copied to your local `.git/hooks` directory. These enforce:
-- Commit message linting
-- CI-passing checks before push
-- Formatting compliance
+### Cross-Program Interaction
+Interaction between programs is strictly unidirectional or via CPI. The `resq-delivery` program holds a reference to the `airspace` account address, enabling auditing tools to reconstruct the mission context without coupling the state machine itself.
 
 ---
 
@@ -154,20 +147,9 @@ The repository includes pre-configured hooks in `.git-hooks/`. To enable them, e
 
 We strictly follow [Conventional Commits](https://www.conventionalcommits.org/).
 
-1. **Fork** the repository.
-2. **Feature branch**: `feat/your-feature` or `fix/your-fix`.
-3. **Audit**: Run the provided audit tools (see `.github/skills/`).
-4. **Pull Request**: Ensure CI passes all checks.
-
-Refer to `CONTRIBUTING.md` for complete guidelines on security audits and protocol additions.
-
----
-
-## Roadmap
-
-- [ ] **Q3 2026**: Transition to Anchor 0.31+ compatibility.
-- [ ] **Q4 2026**: Implement cross-program invocation (CPI) for automated airspace entry/exit tolls.
-- [ ] **Q1 2027**: Zero-Knowledge Proof (ZKP) integration for anonymous permit verification.
+1. **Feature branch**: `feat/` or `fix/`.
+2. **Audit**: Run `cargo audit` and the custom `.git-hooks/` pre-commit checks.
+3. **Pull Request**: Must pass CI coverage and validation checks.
 
 ---
 
