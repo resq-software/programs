@@ -73,6 +73,23 @@
   color: "000000"
   description: "CI/CD and tooling"
 
+# --- Dependency automation ---
+- name: "dependencies"
+  color: "0366d6"
+  description: Automated dependency updates
+
+- name: "github-actions"
+  color: "1f6feb"
+  description: GitHub Actions dependency updates
+
+- name: "rust"
+  color: "dea584"
+  description: Rust dependency updates
+
+- name: "javascript"
+  color: "f1e05a"
+  description: JavaScript and TypeScript dependency updates
+
 # --- Status (S-) ---
 - name: "S-Needs-Triage"
   color: "ededed"
