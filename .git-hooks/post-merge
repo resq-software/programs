@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#
+# Copyright 2026 ResQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# post-merge
+#
+# Automatically installs dependencies when lock files change after a merge.
+#
+# Usage:
+#   .git-hooks/post-merge
+#
+# Exit codes:
+#   0  Always.
+
+[ -n "${GIT_HOOKS_SKIP:-}" ] && exit 0
+
+# CHANGED_FILES stores the list of files changed in the merge.
+CHANGED_FILES=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null)
+
+# Check if Cargo.lock changed after merge
+if echo "$CHANGED_FILES" | grep -q "^Cargo\.lock$"; then
+    echo "📦 Cargo.lock changed after merge — dependencies will update on next build"
+fi
+
+# Check if bun.lockb changed after merge
+if echo "$CHANGED_FILES" | grep -q "^bun\.lockb$"; then
+    if [ -n "${SKIP_BUN_INSTALL:-}" ]; then
+        echo "📦 bun.lockb changed after merge — skipping install (SKIP_BUN_INSTALL set)"
+    elif command -v bun >/dev/null 2>&1; then
+        echo "📦 bun.lockb changed after merge — running bun install..."
+        bun install --frozen-lockfile 2>/dev/null || bun install
+        echo "✅ JS dependencies updated"
+    else
+        echo "⚠️  bun not found — run 'bun install' manually"
+    fi
+fi

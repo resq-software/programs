@@ -1,0 +1,91 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#
+# Copyright 2026 ResQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# pre-push
+#
+# Runs checks before allowing a push to a remote repository.
+# Includes force-push protection for main, branch naming convention enforcement,
+# and cargo check for Rust/Anchor changes.
+#
+# Usage:
+#   .git-hooks/pre-push [remote_name [remote_url]]
+#
+# Arguments:
+#   $1 - Name of the remote to which the push is being done.
+#   $2 - URL to which the push is being done.
+#
+# Exit codes:
+#   0  All checks passed.
+#   1  Blocking check failed.
+
+[ -n "${GIT_HOOKS_SKIP:-}" ] && exit 0
+
+echo "🚀 Running pre-push checks..."
+
+# BRANCH stores the name of the current local branch.
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+
+# ── Force-push guard for main ──────────────────────────────────────────
+if [ "$BRANCH" = "main" ]; then
+    while read -r _local_ref local_sha _remote_ref remote_sha; do
+        if [ "$remote_sha" != "0000000000000000000000000000000000000000" ] && \
+           [ "$local_sha" != "0000000000000000000000000000000000000000" ]; then
+            if ! git merge-base --is-ancestor "$remote_sha" "$local_sha" 2>/dev/null; then
+                echo "❌ Force push to main is not allowed."
+                echo "To override: git push --no-verify"
+                exit 1
+            fi
+        fi
+    done
+fi
+
+# ── Branch naming convention ───────────────────────────────────────────
+# ALLOWED_PATTERN is the regular expression for valid branch names.
+ALLOWED_PATTERN="^(feat|fix|docs|chore|refactor|test|ci|perf|release)/.*$"
+# SKIP_BRANCHES is the regular expression for branches exempt from naming checks.
+SKIP_BRANCHES="^(main|master|dev|develop|staging|production)$"
+
+if [ -n "$BRANCH" ]; then
+    if ! echo "$BRANCH" | grep -qE "$SKIP_BRANCHES"; then
+        if ! echo "$BRANCH" | grep -qE "$ALLOWED_PATTERN"; then
+            echo "❌ Branch name '$BRANCH' does not follow naming convention."
+            echo "Expected: type/description (e.g., feat/add-auth, fix/login-bug)"
+            echo "Allowed prefixes: feat, fix, docs, chore, refactor, test, ci, perf, release"
+            echo "To push anyway: git push --no-verify"
+            exit 1
+        fi
+    fi
+fi
+
+# ── cargo check (if Rust/Anchor files changed) ─────────────────────────
+if command -v cargo >/dev/null 2>&1; then
+    REMOTE=${1:-origin}
+    REMOTE_BRANCH=$(git rev-parse --abbrev-ref "@{upstream}" 2>/dev/null || echo "$REMOTE/main")
+    CHANGED_RS=$(git diff --name-only "$REMOTE_BRANCH"...HEAD -- '*.rs' 'Cargo.toml' 'Cargo.lock' 2>/dev/null || true)
+
+    if [ -n "$CHANGED_RS" ]; then
+        echo "  Checking Rust/Anchor workspace..."
+        if ! cargo check --workspace --quiet 2>&1; then
+            echo "❌ cargo check failed. Fix errors before pushing."
+            echo "To push anyway: git push --no-verify"
+            exit 1
+        fi
+        echo "✅ Rust workspace OK"
+    fi
+fi
+
+echo "✅ Pre-push checks passed"

@@ -1,0 +1,71 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#
+# Copyright 2026 ResQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# post-checkout
+#
+# Automatically installs dependencies when lock files change during branch checkout.
+#
+# Usage:
+#   .git-hooks/post-checkout PREV_HEAD NEW_HEAD IS_BRANCH_CHECKOUT
+#
+# Arguments:
+#   $1 - Previous HEAD commit hash.
+#   $2 - New HEAD commit hash.
+#   $3 - Flag indicating if it's a branch checkout (1) or file checkout (0).
+#
+# Exit codes:
+#   0  Always.
+
+[ -n "${GIT_HOOKS_SKIP:-}" ] && exit 0
+
+# PREV_HEAD stores the commit hash before checkout.
+PREV_HEAD="${1:-}"
+# NEW_HEAD stores the commit hash after checkout.
+NEW_HEAD="${2:-}"
+# IS_BRANCH_CHECKOUT is "1" if a branch was checked out, "0" otherwise.
+IS_BRANCH_CHECKOUT="${3:-}"
+
+# Only run on branch checkouts, not file checkouts
+if [ "$IS_BRANCH_CHECKOUT" != "1" ]; then
+    exit 0
+fi
+
+# Skip if both heads are the same (no actual branch change)
+if [ "$PREV_HEAD" = "$NEW_HEAD" ]; then
+    exit 0
+fi
+
+# CHANGED stores the list of files that differ between the two heads.
+CHANGED=$(git diff --name-only "$PREV_HEAD" "$NEW_HEAD" 2>/dev/null)
+
+# Check if Cargo.lock changed
+if echo "$CHANGED" | grep -q "^Cargo\.lock$"; then
+    echo "📦 Cargo.lock changed — dependencies will update on next build"
+fi
+
+# Check if bun.lockb changed
+if echo "$CHANGED" | grep -q "^bun\.lockb$"; then
+    if [ -n "${SKIP_BUN_INSTALL:-}" ]; then
+        echo "📦 bun.lockb changed — skipping install (SKIP_BUN_INSTALL set)"
+    elif command -v bun >/dev/null 2>&1; then
+        echo "📦 bun.lockb changed — running bun install..."
+        bun install --frozen-lockfile 2>/dev/null || bun install
+        echo "✅ JS dependencies updated"
+    else
+        echo "⚠️  bun not found — run 'bun install' manually"
+    fi
+fi

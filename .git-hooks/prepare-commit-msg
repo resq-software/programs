@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#
+# Copyright 2026 ResQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# prepare-commit-msg
+#
+# Prepends a ticket reference to the commit message based on the branch name.
+#
+# Usage:
+#   .git-hooks/prepare-commit-msg COMMIT_MSG_FILE [COMMIT_SOURCE [SHA1]]
+#
+# Arguments:
+#   $1 - Path to the file containing the commit message.
+#   $2 - Source of the commit message (merge, squash, commit, etc.).
+#   $3 - Commit SHA1 (if amending).
+#
+# Exit codes:
+#   0  Always.
+
+# COMMIT_MSG_FILE stores the path to the commit message file.
+COMMIT_MSG_FILE="${1:-}"
+# COMMIT_SOURCE stores the source of the commit message.
+COMMIT_SOURCE="${2:-}"
+
+# Only modify regular commits (not merge, squash, amend, or message-supplied)
+case "$COMMIT_SOURCE" in
+    merge|squash|message) exit 0 ;;
+esac
+
+# Don't modify if amending
+if [ "$COMMIT_SOURCE" = "commit" ]; then
+    exit 0
+fi
+
+# BRANCH stores the name of the current local branch.
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+if [ -z "$BRANCH" ]; then
+    exit 0
+fi
+
+# TICKET extracts the ticket reference (e.g., PROJ-123) from the branch name.
+TICKET=$(echo "$BRANCH" | grep -oE '[A-Z]{2,}-[0-9]+' | head -1 || true)
+
+if [ -z "$TICKET" ]; then
+    exit 0
+fi
+
+# Read current commit message
+COMMIT_MSG=$(cat "$COMMIT_MSG_FILE")
+
+# Don't prepend if ticket is already referenced in the message
+if echo "$COMMIT_MSG" | grep -qF "$TICKET"; then
+    exit 0
+fi
+
+# Prepend ticket reference
+printf '[%s] %s\n' "$TICKET" "$COMMIT_MSG" > "$COMMIT_MSG_FILE"

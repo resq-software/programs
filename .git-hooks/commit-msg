@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+#
+# Copyright 2026 ResQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+# commit-msg
+#
+# Validates the commit message format.
+# Ensures the subject line follows the Conventional Commits specification.
+#
+# Usage:
+#   .git-hooks/commit-msg COMMIT_MSG_FILE
+#
+# Arguments:
+#   $1 - Path to the file containing the commit message.
+#
+# Exit codes:
+#   0  Commit message is valid.
+#   1  Commit message is invalid.
+
+[ -n "${GIT_HOOKS_SKIP:-}" ] && exit 0
+
+# INPUT_FILE stores the path to the commit message file.
+INPUT_FILE=${1:-}
+# PATTERN is the regular expression for a valid Conventional Commit message.
+PATTERN="^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?(!)?: .+$"
+
+# Validate only the first line (subject). Strip an optional [TICKET-123] prefix
+# inserted by prepare-commit-msg so the two hooks don't conflict.
+FIRST_LINE=$(head -1 "$INPUT_FILE")
+SUBJECT=$(echo "$FIRST_LINE" | sed 's/^\[[A-Z][A-Z]*-[0-9]*\] //')
+
+if ! echo "$SUBJECT" | grep -qE "$PATTERN"; then
+    echo "Error: Invalid commit message format."
+    echo "Expected format: type(scope): subject"
+    echo "Examples:"
+    echo "  feat(core): add new feature"
+    echo "  fix(ui): fix button color"
+    exit 1
+fi
+
+# Block fixup!/WIP commits on main
+BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+if [ "$BRANCH" = "main" ]; then
+    if echo "$FIRST_LINE" | grep -qiE "^(\[[A-Z]+-[0-9]+\] )?(fixup!|squash!|wip[: ])"; then
+        echo "Error: fixup!/squash!/WIP commits are not allowed on main."
+        echo "Create a feature branch instead."
+        exit 1
+    fi
+fi
