@@ -23,8 +23,11 @@ jobs:
       - name: Build
         run: cargo build
 
-      - name: Test with coverage
-        run: cargo llvm-cov --lcov --output-path lcov.info
+      - name: Check test targets compile
+        run: cargo check --tests
+
+      - name: Test library targets with coverage
+        run: cargo llvm-cov --lib --lcov --output-path lcov.info
 
       - name: Upload coverage to Codecov
         if: always()
