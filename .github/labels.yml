@@ -1,0 +1,117 @@
+# Copyright 2026 ResQ
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Standardized label definitions for ResQ Programs repository
+
+# --- Type (C- Category) ---
+- name: "C-Bug"
+  color: "d73a4a"
+  description: Something isn't working
+
+- name: "C-Feature"
+  color: "a2eeef"
+  description: New feature or request
+
+- name: "C-Documentation"
+  color: "0075ca"
+  description: Improvements or additions to documentation
+
+- name: "C-Security"
+  color: "e4e669"
+  description: Security vulnerability or improvement
+
+- name: "C-Performance"
+  color: "f9d0c4"
+  description: Performance regression or optimization
+
+- name: "C-Refactor"
+  color: "d4c5f9"
+  description: Code refactoring with no behavior change
+
+- name: "C-Breaking-Change"
+  color: "b60205"
+  description: Breaking change to the API or behavior
+
+# --- Priority (P-) ---
+- name: "P0: critical"
+  color: "b60205"
+  description: "Outage or data loss — drop everything"
+
+- name: "P1: high"
+  color: "d93f0b"
+  description: "Major impact — fix this sprint"
+
+- name: "P2: medium"
+  color: "fbca04"
+  description: "Moderate impact — fix soon"
+
+- name: "P3: low"
+  color: "0e8a16"
+  description: "Minor impact — fix when convenient"
+
+# --- Area (A-) ---
+- name: "A-Rust"
+  color: "dea584"
+  description: Rust code
+
+- name: "A-Solana"
+  color: "14f195"
+  description: "Solana/Anchor programs"
+
+- name: "A-DevOps"
+  color: "000000"
+  description: "CI/CD and tooling"
+
+# --- Status (S-) ---
+- name: "S-Needs-Triage"
+  color: "ededed"
+  description: Needs initial assessment
+
+- name: "S-In-Progress"
+  color: "1d76db"
+  description: Actively being worked on
+
+- name: "S-Blocked"
+  color: "b60205"
+  description: Blocked by external dependency or decision
+
+- name: "S-Needs-Review"
+  color: "fbca04"
+  description: Ready for code review
+
+- name: "S-Ready-To-Merge"
+  color: "0e8a16"
+  description: "Approved and ready to be merged"
+
+# --- Community ---
+- name: "good first issue"
+  color: "7057ff"
+  description: Good for newcomers
+
+- name: "help wanted"
+  color: "008672"
+  description: Extra attention is needed
+
+# --- Workflow ---
+- name: "pinned"
+  color: "006b75"
+  description: Exempt from stale bot
+
+- name: "duplicate"
+  color: "cfd3d7"
+  description: This issue or PR already exists
+
+- name: "wontfix"
+  color: "ffffff"
+  description: This will not be worked on
