@@ -26,7 +26,7 @@ unsafe_code = "warn"
 anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
 anchor-client = "0.30.1"
 solana-program-test = "2.3"
-solana-sdk = "2.3"
+solana-sdk = "4.0"
 tokio = { version = "1", features = ["full"] }
 
 [profile.release]
