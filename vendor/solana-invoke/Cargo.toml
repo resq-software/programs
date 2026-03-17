@@ -1,0 +1,24 @@
+[package]
+name = "solana-invoke"
+version = "0.4.0"
+edition = "2021"
+authors = [
+  "Cavey Cool <caveycool@gmail.com>",
+  "Magnetar Fields <0xMAGNETAR@proton.me>",
+  "Jamie Hill-Daniel <jamie@osec.io",
+]
+license = "MIT OR Apache-2.0"
+description = "Patched host-side CPI support for program-test."
+repository = "https://github.com/solana-foundation/solana-invoke"
+
+[lib]
+name = "solana_invoke"
+path = "src/lib.rs"
+
+[dependencies]
+solana-account-info = "2"
+solana-define-syscall = "2"
+solana-instruction = "2"
+solana-program = "2"
+solana-program-entrypoint = "2"
+solana-stable-layout = "2"

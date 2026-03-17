@@ -98,7 +98,7 @@
 
             echo ""
             echo "Build:  anchor build"
-            echo "Test:   anchor test"
+            echo "Test:   bash ./scripts/test.sh"
             echo "Deploy: anchor deploy --provider.cluster devnet"
             echo "-------------------------------------------------"
 

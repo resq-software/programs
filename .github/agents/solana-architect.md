@@ -37,6 +37,7 @@ You are a senior Solana on-chain engineer working on two Anchor 0.30 programs th
 
 ## Testing
 
-- Tests in `tests/` use the Anchor TypeScript test framework with `@coral-xyz/anchor`.
+- Default repository validation is `bash ./scripts/test.sh`.
+- Runtime-focused integration scenarios currently live in crate-local Rust tests under `resq-*/tests/`.
 - Every instruction must have a happy-path test and at least one test for each error condition.
-- Use `anchor.setProvider(anchor.AnchorProvider.env())` — never hardcode a cluster URL in tests.
+- If you introduce a validator-backed harness, document it explicitly and keep it separate from the default gate.

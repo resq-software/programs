@@ -14,26 +14,30 @@
  * limitations under the License.
  */
 
-use anchor_lang::{InstructionData, ToAccountMetas, AccountDeserialize};
+use anchor_lang::{
+    system_program,
+    AccountDeserialize,
+    InstructionData,
+    ToAccountMetas,
+};
 use solana_program_test::*;
 use solana_sdk::{
     instruction::Instruction,
-    pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    system_program,
-    sysvar::{clock::Clock, SysvarId},
     transaction::Transaction,
 };
+use solana_sdk::pubkey::Pubkey;
 
 use resq_airspace::state::airspace_account::{AccessPolicy, AirspaceAccount};
 use resq_airspace::state::permit::Permit;
 
+#[allow(unsafe_code)]
 fn process_instruction(
-    program_id: &solana_sdk::pubkey::Pubkey,
-    accounts: &[solana_sdk::account_info::AccountInfo],
+    program_id: &Pubkey,
+    accounts: &[anchor_lang::solana_program::account_info::AccountInfo],
     data: &[u8],
-) -> solana_sdk::entrypoint::ProgramResult {
+) -> anchor_lang::solana_program::entrypoint::ProgramResult {
     resq_airspace::entry(program_id, unsafe { std::mem::transmute(accounts) }, data)
 }
 
@@ -89,7 +93,7 @@ async fn initialize_property_ix(
     let accounts = resq_airspace::accounts::InitializeProperty {
         owner: *owner,
         airspace: *airspace_pda,
-        system_program: system_program::id(),
+        system_program: system_program::ID,
     }
     .to_account_metas(None);
 
@@ -109,7 +113,7 @@ async fn test_initialize_property_happy_path() {
         resq_airspace::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let owner = Keypair::new();
     let pid = str_to_bytes32("property-open-001");
@@ -155,7 +159,7 @@ async fn test_initialize_rejects_empty_property_id() {
         resq_airspace::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let owner = Keypair::new();
     let pid = [0u8; 32];
@@ -193,7 +197,7 @@ async fn test_grant_permit_happy_path() {
         resq_airspace::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let owner = Keypair::new();
     let pid = str_to_bytes32("property-permit-001");
@@ -223,7 +227,7 @@ async fn test_grant_permit_happy_path() {
         owner: owner.pubkey(),
         airspace: airspace_pubkey,
         permit: p_pda,
-        system_program: system_program::id(),
+        system_program: system_program::ID,
     }.to_account_metas(None);
 
     let grant_ix = Instruction {
@@ -258,7 +262,7 @@ async fn test_record_crossing_open_policy() {
         resq_airspace::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let owner = Keypair::new();
     let drone = Keypair::new();
@@ -300,7 +304,7 @@ async fn test_record_crossing_open_policy() {
         owner: owner.pubkey(),
         airspace: airspace_pubkey,
         permit: p_pda,
-        system_program: system_program::id(),
+        system_program: system_program::ID,
     }.to_account_metas(None);
     let grant_ix = Instruction {
         program_id: resq_airspace::id(),
@@ -330,7 +334,7 @@ async fn test_record_crossing_open_policy() {
         airspace: airspace_pubkey,
         permit: p_pda, // Doesn't need to exist for Open policy actually, but account required in ctx
         treasury: treasury.pubkey(),
-        system_program: system_program::id(),
+        system_program: system_program::ID,
     }.to_account_metas(None);
 
     let cross_ix = Instruction {
@@ -358,7 +362,7 @@ async fn test_record_crossing_deny_policy() {
         resq_airspace::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let owner = Keypair::new();
     let drone = Keypair::new();
@@ -399,7 +403,7 @@ async fn test_record_crossing_deny_policy() {
         owner: owner.pubkey(),
         airspace: airspace_pubkey,
         permit: p_pda,
-        system_program: system_program::id(),
+        system_program: system_program::ID,
     }.to_account_metas(None);
     let mut tx_grant = Transaction::new_with_payer(
         &[
@@ -429,7 +433,7 @@ async fn test_record_crossing_deny_policy() {
         airspace: airspace_pubkey,
         permit: p_pda,
         treasury: treasury.pubkey(),
-        system_program: system_program::id(),
+        system_program: system_program::ID,
     }.to_account_metas(None);
 
     let cross_ix = Instruction {
@@ -460,7 +464,7 @@ async fn test_update_policy() {
         resq_airspace::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let owner = Keypair::new();
     let pid = str_to_bytes32("property-policy-update");

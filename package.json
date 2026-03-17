@@ -1,5 +1,8 @@
 {
   "name": "resq-programs",
   "version": "1.0.0",
-  "description": "ResQ Solana on-chain program tests"
+  "description": "ResQ Solana on-chain program tooling",
+  "scripts": {
+    "test": "bash ./scripts/test.sh"
+  }
 }

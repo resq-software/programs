@@ -14,24 +14,29 @@
  * limitations under the License.
  */
 
-use anchor_lang::{InstructionData, ToAccountMetas, AccountDeserialize};
+use anchor_lang::{
+    system_program,
+    AccountDeserialize,
+    InstructionData,
+    ToAccountMetas,
+};
 use solana_program_test::*;
 use solana_sdk::{
     instruction::Instruction,
-    pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
-    system_program,
     transaction::Transaction,
 };
+use solana_sdk::pubkey::Pubkey;
 
 use resq_delivery::state::delivery_record::DeliveryRecord;
 
+#[allow(unsafe_code)]
 fn process_instruction(
-    program_id: &solana_sdk::pubkey::Pubkey,
-    accounts: &[solana_sdk::account_info::AccountInfo],
+    program_id: &Pubkey,
+    accounts: &[anchor_lang::solana_program::account_info::AccountInfo],
     data: &[u8],
-) -> solana_sdk::entrypoint::ProgramResult {
+) -> anchor_lang::solana_program::entrypoint::ProgramResult {
     resq_delivery::entry(program_id, unsafe { std::mem::transmute(accounts) }, data)
 }
 
@@ -75,7 +80,7 @@ fn create_record_ix(
         drone: *drone,
         airspace: *airspace,
         delivery_record: *record_pda,
-        system_program: system_program::id(),
+        system_program: system_program::ID,
     }
     .to_account_metas(None);
 
@@ -95,7 +100,7 @@ async fn test_record_delivery_happy_path() {
         resq_delivery::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
     let airspace_pubkey = Pubkey::new_unique();
@@ -142,7 +147,7 @@ async fn test_rejects_all_zero_cid() {
         resq_delivery::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
     let airspace_pubkey = Pubkey::new_unique();
@@ -175,7 +180,7 @@ async fn test_rejects_zero_timestamp() {
         resq_delivery::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
     let airspace_pubkey = Pubkey::new_unique();
@@ -208,7 +213,7 @@ async fn test_rejects_latitude_out_of_range() {
         resq_delivery::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
     let airspace_pubkey = Pubkey::new_unique();
@@ -241,7 +246,7 @@ async fn test_rejects_longitude_out_of_range() {
         resq_delivery::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
     let airspace_pubkey = Pubkey::new_unique();
@@ -274,7 +279,7 @@ async fn test_duplicate_delivery_fails() {
         resq_delivery::id(),
         processor!(process_instruction),
     );
-    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+    let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
     let airspace_pubkey = Pubkey::new_unique();

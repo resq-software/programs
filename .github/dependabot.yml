@@ -33,12 +33,19 @@ updates:
       prefix: "chore"
       include: "scope"
     groups:
+      solana-anchor-major:
+        patterns:
+          - "anchor-*"
+          - "solana-*"
+          - "spl-*"
+        update-types:
+          - "major"
       rust-minor-patch:
         update-types:
           - "minor"
           - "patch"
 
-  # npm (Anchor TypeScript tests) — Friday
+  # npm (tooling) — Friday
   - package-ecosystem: "npm"
     directory: "/"
     schedule:

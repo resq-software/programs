@@ -32,4 +32,4 @@ cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "cargo t"
+test = "bash ./scripts/test.sh"

@@ -14,22 +14,27 @@ description: Testing rules for the ResQ Solana Anchor programs.
 
 ## Test Framework
 
-- TypeScript tests using `@coral-xyz/anchor` and `mocha`/`chai`.
-- Test files in `tests/` named after the program (e.g., `resq-airspace.ts`).
-- Use `anchor.setProvider(anchor.AnchorProvider.env())` — never hardcode cluster URLs.
-- Create fresh keypairs per test to avoid state bleed between tests.
+- Rust integration tests use `solana-program-test` with `#[tokio::test]`.
+- Integration tests live under each crate's `tests/` directory (for example, `resq-airspace/tests/integration.rs`).
+- Keep reusable harness helpers small and deterministic.
+- Create fresh keypairs per test to avoid state bleed between cases.
 
 ## Error Assertion
 
-```typescript
-// Correct: assert the specific Anchor error code
-await assert.rejects(
-  program.methods.registerZone(...).rpc(),
-  (err: AnchorError) => err.error.errorCode.number === 6001 // ZONE_ALREADY_EXISTS
+```rust
+let err = banks_client.process_transaction(tx).await.unwrap_err();
+assert!(
+    err.unwrap().to_string().contains("EmptyPropertyId")
+        || format!("{err:?}").contains("Custom(6001)")
 );
 ```
 
-## Local Validator
+## Automated Gate
 
-- `anchor test` must succeed with a fresh local validator — no dependency on devnet state.
-- Tests must be idempotent — running them twice in a row should not fail due to state left from the first run.
+- `bash ./scripts/test.sh` is the default repository validation command.
+- It must build the workspace, compile integration targets, and keep library tests green on every PR.
+
+## Runtime Harnesses
+
+- Validator-backed or SBF execution belongs to an explicitly maintained harness, not the default CI path.
+- If a change depends on runtime behavior beyond the default gate, document the extra command and run it explicitly.

@@ -1,3 +1,5 @@
+#![allow(ambiguous_glob_reexports)]
+
 /*
  * Copyright 2026 ResQ
  *

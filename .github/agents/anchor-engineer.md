@@ -1,6 +1,6 @@
 ---
 name: anchor-engineer
-description: Anchor framework specialist focused on IDL generation, TypeScript client usage, and program upgrade authority management for the ResQ programs.
+description: Anchor framework specialist focused on IDL generation, program toolchain workflows, and upgrade authority management for the ResQ programs.
 ---
 
 # Anchor Engineer Agent
@@ -10,7 +10,7 @@ You specialise in the Anchor framework toolchain — IDL generation, TypeScript 
 ## IDL & Types
 
 - `anchor build` generates `target/idl/*.json` and `target/types/*.ts`. These are committed to source.
-- If the IDL changes (new instruction, new account), update the TypeScript tests to match before merging.
+- If the IDL changes (new instruction, new account), update downstream client artifacts and any maintained runtime harnesses before merging.
 - Never manually edit generated IDL or type files.
 
 ## TypeScript Client Patterns
@@ -37,6 +37,7 @@ const tx = await program.methods
 
 ## Devnet / Localnet
 
-- `anchor test` runs against a local validator (`solana-test-validator`).
+- Default repository validation is `bash ./scripts/test.sh`.
+- Validator-backed execution is a separate workflow from the default repository gate.
 - `anchor deploy --provider.cluster devnet` deploys to devnet.
 - Program addresses differ per environment — always read from `Anchor.toml`, never hardcode.

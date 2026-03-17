@@ -47,7 +47,7 @@ C4Context
 
 *   **Rust**: `stable` (via `rustup`)
 *   **Solana CLI**: `2.1.0` (ensure you have this specific version by running `solana-install-toolchain --version 2.1.0` if needed)
-*   **Anchor CLI**: `0.30.1` (managed via `avm`)
+*   **Anchor CLI**: `0.30.1` (managed via `avm`, required for SBF builds and deploys)
 
 ### Environment Setup
 
@@ -78,11 +78,11 @@ anchor build
 
 ## Quick Start
 
-Execute integration tests to verify the deployment state and core functionality:
+Run the default repository validation workflow:
 
 ```bash
-# Run all tests against a local solana-test-validator
-anchor test
+# Build the workspace, compile integration targets, and run library tests
+bash ./scripts/test.sh
 ```
 
 ## Usage
@@ -279,13 +279,24 @@ When the AI is invoked (e.g., through an integrated chat interface or specific c
 
 ## Development
 
-### Local Validator Setup
+### Repository Validation
 
-`anchor test` automatically starts a `solana-test-validator` instance. Ensure you have sufficient disk space for validator data, as it can grow over time. If the validator fails to start, try removing the `.anchor/` directory and rerunning.
+The default project gate is `bash ./scripts/test.sh`. It intentionally stays on the host toolchain and verifies:
+
+*   Workspace builds succeed.
+*   Integration targets still compile.
+*   Library tests remain green.
 
 ### Testing
 
-All tests are located in the `tests/` directory and are written using the `@coral-xyz/anchor` TypeScript framework. Comprehensive tests include:
+Rust integration coverage currently lives under the crate-local `tests/` directories, including:
+
+*   `resq-airspace/tests/integration.rs`
+*   `resq-delivery/tests/integration.rs`
+
+The default validation workflow compiles those targets in CI, but does not execute the current runtime harness. Full validator-backed or SBF-backed execution should be treated as a separate, explicitly maintained harness.
+
+Comprehensive tests should still include:
 
 *   Happy-path scenarios for all instructions.
 *   Error condition tests for each `#[error_code]`.

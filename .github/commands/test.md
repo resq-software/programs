@@ -1,6 +1,6 @@
 ---
 name: test
-description: Run all Anchor tests against a local validator.
+description: Run the repository validation workflow.
 ---
 
 # /test
@@ -9,7 +9,7 @@ Run tests for the ResQ Solana programs.
 
 ## Steps
 
-1. Run `anchor test`.
-2. This starts a local validator, deploys programs, runs TypeScript tests, and tears down the validator.
-3. Report failing tests with the instruction name, test description, and error message.
-4. If `solana-test-validator` fails to start, check for a stale `.anchor/` lock file and remove it.
+1. Run `bash ./scripts/test.sh`.
+2. This builds the workspace, compiles integration targets, and runs library tests.
+3. Report compiler failures and failing tests with the crate, test name, and error message.
+4. Treat validator-backed execution as a separate harness issue unless the task explicitly asks for it.

@@ -1,3 +1,5 @@
+#![allow(unexpected_cfgs)]
+
 /*
  * Copyright 2026 ResQ
  *

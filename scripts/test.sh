@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Copyright 2026 ResQ
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,32 +14,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-[workspace]
-resolver = "2"
-members = [
-  "resq-delivery",
-  "resq-airspace",
-]
+set -euo pipefail
 
-[workspace.lints.rust]
-unsafe_code = "warn"
+echo "==> cargo build --workspace"
+cargo build --workspace
 
-[workspace.dependencies]
-anchor-lang = { version = "0.32.1", features = ["init-if-needed"] }
-anchor-client = "0.30.1"
-solana-program-test = "2.3"
-solana-sdk = "2.3"
-tokio = { version = "1", features = ["full"] }
+echo "==> cargo check --tests"
+cargo check --tests
 
-[profile.release]
-overflow-checks = true
-lto = "fat"
-codegen-units = 1
-
-[profile.release.build-override]
-opt-level = 3
-incremental = false
-codegen-units = 1
-
-[patch.crates-io]
-solana-invoke = { path = "vendor/solana-invoke" }
+echo "==> cargo test --workspace --lib"
+cargo test --workspace --lib

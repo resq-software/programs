@@ -191,7 +191,7 @@ if command_exists bun; then
     log_success "JS dependencies installed."
 fi
 
-# 7. Wallet keypair — required for anchor test and localnet deploys
+# 7. Wallet keypair — required for Anchor localnet and deploy workflows
 if [ "$SKIP_KEYGEN" = false ]; then
     KEYPAIR="$HOME/.config/solana/id.json"
     if [ ! -f "$KEYPAIR" ]; then
@@ -229,6 +229,6 @@ echo ""
 echo "Next steps:"
 echo "  nix develop                                  # Enter dev shell"
 echo "  anchor build                                 # Compile programs"
-echo "  anchor test                                  # Run tests (starts localnet)"
+echo "  bash ./scripts/test.sh                       # Run repository validation"
 echo "  anchor deploy --provider.cluster devnet      # Deploy to devnet"
 echo "  docker build -t resq-programs .              # Build artifacts via Docker"
