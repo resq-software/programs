@@ -25,6 +25,7 @@ unsafe_code = "warn"
 [workspace.dependencies]
 anchor-lang = { version = "1.0.0-rc.2", features = ["init-if-needed"] }
 anchor-client = "1.0.0-rc.2"
+solana-account = "3.2.0"
 solana-account-info = "3.1.0"
 solana-instruction = "3.2.0"
 solana-keypair = "3.1.2"

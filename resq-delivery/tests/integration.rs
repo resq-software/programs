@@ -14,29 +14,34 @@
  * limitations under the License.
  */
 
-use anchor_lang::{
-    prelude::{AccountMeta as AnchorAccountMeta, Pubkey as AnchorPubkey},
-    system_program as anchor_system_program,
-    AccountDeserialize,
-    InstructionData,
-    ToAccountMetas,
+use anchor_lang::{InstructionData, ToAccountMetas, AccountDeserialize};
+use solana_account::Account;
+use solana_program_test::*;
+use solana_sdk::{
+    instruction::Instruction,
+    pubkey::Pubkey,
+    signature::Keypair,
+    signer::Signer,
+    transaction::Transaction,
 };
 use solana_account_info::AccountInfo;
-use solana_instruction::{AccountMeta, Instruction};
-use solana_keypair::Keypair;
+use solana_instruction::{AccountMeta, Instruction as SolanaInstruction};
+use solana_keypair::Keypair as SolanaKeypair;
 use solana_program_test::{processor, ProgramTest};
-use solana_pubkey::Pubkey;
+use solana_pubkey::Pubkey as SolanaPubkey;
 use solana_sdk::program_error::ProgramError;
-use solana_signer::Signer;
+use solana_signer::Signer as SolanaSigner;
 use solana_system_interface::instruction as system_instruction;
-use solana_transaction::Transaction;
+use solana_transaction::Transaction as SolanaTransaction;
 use solana_program_entrypoint::ProgramResult;
 
+use anchor_lang::Discriminator;
+use resq_airspace::state::airspace_account::AirspaceAccount;
 use resq_delivery::state::delivery_record::DeliveryRecord;
 
 #[allow(unsafe_code)]
 fn process_instruction(
-    program_id: &Pubkey,
+    program_id: &SolanaPubkey,
     accounts: &[AccountInfo],
     data: &[u8],
 ) -> ProgramResult {
@@ -47,15 +52,15 @@ fn process_instruction(
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-fn sdk_pubkey(value: AnchorPubkey) -> Pubkey {
-    Pubkey::new_from_array(value.to_bytes())
+fn sdk_pubkey(value: anchor_lang::prelude::Pubkey) -> SolanaPubkey {
+    SolanaPubkey::new_from_array(value.to_bytes())
 }
 
-fn anchor_pubkey(value: Pubkey) -> AnchorPubkey {
-    AnchorPubkey::new_from_array(value.to_bytes())
+fn anchor_pubkey(value: SolanaPubkey) -> anchor_lang::prelude::Pubkey {
+    anchor_lang::prelude::Pubkey::new_from_array(value.to_bytes())
 }
 
-fn sdk_account_metas(value: Vec<AnchorAccountMeta>) -> Vec<AccountMeta> {
+fn sdk_account_metas(value: Vec<anchor_lang::prelude::AccountMeta>) -> Vec<AccountMeta> {
     value.into_iter()
         .map(|meta| {
             let pubkey = sdk_pubkey(meta.pubkey);
@@ -76,23 +81,45 @@ fn cid_to_bytes(cid: &str) -> [u8; 64] {
     buf
 }
 
-fn delivery_pda(drone: &Pubkey, delivered_at: i64) -> (Pubkey, u8) {
-    Pubkey::find_program_address(
+fn delivery_pda(drone: &SolanaPubkey, delivered_at: i64) -> (SolanaPubkey, u8) {
+    SolanaPubkey::find_program_address(
         &[b"delivery", drone.as_ref(), &delivered_at.to_le_bytes()],
         &sdk_pubkey(resq_delivery::id()),
     )
 }
 
+/// Add a valid-looking AirspaceAccount owned by the resq-airspace program to
+/// the test validator.  The delivery program uses `Account<'info, AirspaceAccount>`
+/// which checks both owner == resq-airspace program ID *and* the 8-byte
+/// Anchor discriminator, so the account data must be at least `AirspaceAccount::LEN`
+/// bytes with the correct discriminator prefix.
+fn seed_airspace_account(program: &mut ProgramTest) -> SolanaPubkey {
+    let airspace_pubkey = SolanaPubkey::new_unique();
+    let mut data = vec![0u8; AirspaceAccount::LEN];
+    data[..8].copy_from_slice(&AirspaceAccount::DISCRIMINATOR);
+    program.add_account(
+        airspace_pubkey,
+        Account {
+            lamports: 1_000_000,
+            data,
+            owner: sdk_pubkey(resq_airspace::id()),
+            executable: false,
+            rent_epoch: 0,
+        },
+    );
+    airspace_pubkey
+}
+
 fn create_record_ix(
-    drone: &Pubkey,
-    airspace: &Pubkey,
-    record_pda: &Pubkey,
+    drone: &SolanaPubkey,
+    airspace: &SolanaPubkey,
+    record_pda: &SolanaPubkey,
     ipfs_cid: [u8; 64],
     lat: i64,
     lon: i64,
     alt_m: u32,
     delivered_at: i64,
-) -> Instruction {
+) -> SolanaInstruction {
     let data = resq_delivery::instruction::RecordDelivery {
         ipfs_cid,
         lat,
@@ -106,11 +133,11 @@ fn create_record_ix(
         drone: anchor_pubkey(*drone),
         airspace: anchor_pubkey(*airspace),
         delivery_record: anchor_pubkey(*record_pda),
-        system_program: anchor_system_program::ID,
+        system_program: anchor_lang::system_program::ID,
     }
     .to_account_metas(None);
 
-    Instruction {
+    SolanaInstruction {
         program_id: sdk_pubkey(resq_delivery::id()),
         accounts: sdk_account_metas(accounts),
         data,
@@ -121,15 +148,15 @@ fn create_record_ix(
 
 #[tokio::test]
 async fn test_record_delivery_happy_path() {
-    let program = ProgramTest::new(
+    let mut program = ProgramTest::new(
         "resq_delivery",
         sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
+    let airspace_pubkey = seed_airspace_account(&mut program);
     let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let airspace_pubkey = Pubkey::new_unique();
     let delivered_at = 1680000000_i64;
 
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
@@ -147,7 +174,7 @@ async fn test_record_delivery_happy_path() {
     );
 
     let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
-    let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
+    let mut tx = SolanaTransaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
     banks_client.process_transaction(tx).await.unwrap();
 
@@ -168,15 +195,15 @@ async fn test_record_delivery_happy_path() {
 
 #[tokio::test]
 async fn test_rejects_all_zero_cid() {
-    let program = ProgramTest::new(
+    let mut program = ProgramTest::new(
         "resq_delivery",
         sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
+    let airspace_pubkey = seed_airspace_account(&mut program);
     let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let airspace_pubkey = Pubkey::new_unique();
     let delivered_at = 1680000001_i64;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
@@ -192,7 +219,7 @@ async fn test_rejects_all_zero_cid() {
     );
 
     let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
-    let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
+    let mut tx = SolanaTransaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
@@ -201,15 +228,15 @@ async fn test_rejects_all_zero_cid() {
 
 #[tokio::test]
 async fn test_rejects_zero_timestamp() {
-    let program = ProgramTest::new(
+    let mut program = ProgramTest::new(
         "resq_delivery",
         sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
+    let airspace_pubkey = seed_airspace_account(&mut program);
     let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let airspace_pubkey = Pubkey::new_unique();
     let delivered_at = 0_i64;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
@@ -225,7 +252,7 @@ async fn test_rejects_zero_timestamp() {
     );
 
     let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
-    let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
+    let mut tx = SolanaTransaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
@@ -234,15 +261,15 @@ async fn test_rejects_zero_timestamp() {
 
 #[tokio::test]
 async fn test_rejects_latitude_out_of_range() {
-    let program = ProgramTest::new(
+    let mut program = ProgramTest::new(
         "resq_delivery",
         sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
+    let airspace_pubkey = seed_airspace_account(&mut program);
     let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let airspace_pubkey = Pubkey::new_unique();
     let delivered_at = 1680000002_i64;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
@@ -258,7 +285,7 @@ async fn test_rejects_latitude_out_of_range() {
     );
 
     let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
-    let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
+    let mut tx = SolanaTransaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
@@ -267,15 +294,15 @@ async fn test_rejects_latitude_out_of_range() {
 
 #[tokio::test]
 async fn test_rejects_longitude_out_of_range() {
-    let program = ProgramTest::new(
+    let mut program = ProgramTest::new(
         "resq_delivery",
         sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
+    let airspace_pubkey = seed_airspace_account(&mut program);
     let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let airspace_pubkey = Pubkey::new_unique();
     let delivered_at = 1680000003_i64;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
@@ -291,7 +318,7 @@ async fn test_rejects_longitude_out_of_range() {
     );
 
     let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
-    let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
+    let mut tx = SolanaTransaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
@@ -300,15 +327,15 @@ async fn test_rejects_longitude_out_of_range() {
 
 #[tokio::test]
 async fn test_duplicate_delivery_fails() {
-    let program = ProgramTest::new(
+    let mut program = ProgramTest::new(
         "resq_delivery",
         sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
+    let airspace_pubkey = seed_airspace_account(&mut program);
     let (banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let airspace_pubkey = Pubkey::new_unique();
     let delivered_at = 1680000004_i64;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
@@ -324,7 +351,7 @@ async fn test_duplicate_delivery_fails() {
     );
 
     let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
-    let mut tx1 = Transaction::new_with_payer(&[fund_ix, ix1], Some(&payer.pubkey()));
+    let mut tx1 = SolanaTransaction::new_with_payer(&[fund_ix, ix1], Some(&payer.pubkey()));
     tx1.sign(&[&payer, &drone], recent_blockhash);
     banks_client.process_transaction(tx1).await.unwrap();
 
@@ -340,7 +367,7 @@ async fn test_duplicate_delivery_fails() {
     );
 
     // Will fail because account is already initialized
-    let mut tx2 = Transaction::new_with_payer(&[ix2], Some(&payer.pubkey()));
+    let mut tx2 = SolanaTransaction::new_with_payer(&[ix2], Some(&payer.pubkey()));
     // Force a new blockhash to avoid duplicate transaction signature error,
     // we want the instruction itself to fail.
     let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
@@ -349,4 +376,46 @@ async fn test_duplicate_delivery_fails() {
     let err = banks_client.process_transaction(tx2).await.unwrap_err();
     // Anchor initialization failure
     assert!(format!("{:?}", err).contains("already in use") || format!("{:?}", err).contains("InstructionError"));
+}
+
+#[tokio::test]
+async fn test_rejects_airspace_not_owned_by_airspace_program() {
+    let mut program = ProgramTest::new(
+        "resq_delivery",
+        sdk_pubkey(resq_delivery::id()),
+        processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+
+    let drone = Keypair::new();
+    // This pubkey has no account, so it defaults to system-program-owned —
+    // the owner constraint must reject it.
+    let bogus_airspace = SolanaPubkey::new_unique();
+    let delivered_at = 1680000005_i64;
+    let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
+
+    let ix = create_record_ix(
+        &drone.pubkey(),
+        &bogus_airspace,
+        &record_pda,
+        cid_to_bytes("QmValidCID"),
+        407128000,
+        -740060000,
+        50,
+        delivered_at,
+    );
+
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let mut tx = SolanaTransaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &drone], recent_blockhash);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("InvalidAirspace")
+            || format!("{:?}", err).contains("Custom(6005)")
+            || format!("{:?}", err).contains("IllegalOwner")
+            || format!("{:?}", err).contains("ConstraintOwner")
+            || format!("{:?}", err).contains("AccountNotInitialized")
+            || format!("{:?}", err).contains("Custom(3012)")
+    );
 }

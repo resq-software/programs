@@ -35,15 +35,18 @@ pub struct RecordCrossing<'info> {
     pub airspace: Account<'info, AirspaceAccount>,
 
     /// The drone's Permit for this airspace.
-    /// Required when `airspace.policy == Permit`.
+    /// Required when `airspace.policy` is `Permit` or `Auction`; omit (pass None) for `Open`.
+    /// When provided, Anchor verifies the PDA derivation against the drone signer.
     #[account(
         seeds = [b"permit", airspace.key().as_ref(), drone.key().as_ref()],
-        bump = permit.bump,
+        bump,
     )]
-    pub permit: Account<'info, Permit>,
+    pub permit: Option<Account<'info, Permit>>,
 
     /// The treasury account that receives the crossing fee (if any).
-    /// CHECK: must match `airspace.treasury`; validated below.
+    /// Only consulted when `airspace.policy` is `Permit` or `Auction` and
+    /// `airspace.fee_lamports > 0`.
+    /// CHECK: must match `airspace.treasury`; validated inside the permit arm.
     #[account(mut)]
     pub treasury: UncheckedAccount<'info>,
 
@@ -52,14 +55,18 @@ pub struct RecordCrossing<'info> {
 
 /// Record a drone airspace crossing event.
 ///
-/// If the airspace has a non-zero `fee_lamports` and the drone holds a valid
-/// permit, the fee is transferred from the drone's account to the treasury.
+/// Fee collection is tied to the access policy:
+/// - `Open`    – always allowed, no fee charged.
+/// - `Permit`  – valid permit required; crossing fee collected if configured.
+/// - `Auction` – same as `Permit` (auction mechanism is a future extension).
+/// - `Deny`    – always rejected.
 ///
 /// # Arguments
-/// * `lat`        – latitude × 1e7
-/// * `lon`        – longitude × 1e7
-/// * `alt_m`      – altitude in metres
-/// * `crossed_at` – Unix timestamp (seconds) of the crossing
+/// * `lat`        – latitude × 1e7 (range −900_000_000 to +900_000_000)
+/// * `lon`        – longitude × 1e7 (range −1_800_000_000 to +1_800_000_000)
+/// * `alt_m`      – altitude in metres (enforced against airspace altitude bounds)
+/// * `crossed_at` – Unix timestamp (seconds) of the crossing; must be within the
+///                  5-minute look-back window and no more than 60 seconds ahead
 pub fn handler(
     ctx: Context<RecordCrossing>,
     lat: i64,
@@ -68,38 +75,78 @@ pub fn handler(
     crossed_at: i64,
 ) -> Result<()> {
     let airspace = &ctx.accounts.airspace;
-    let permit = &ctx.accounts.permit;
     let clock = Clock::get()?;
 
-    // Policy check
-    match airspace.policy {
-        AccessPolicy::Deny => return err!(AirspaceError::NoValidPermit),
-        AccessPolicy::Permit | AccessPolicy::Auction => {
-            require!(permit.airspace == airspace.key(), AirspaceError::NoValidPermit);
-            require!(permit.is_active(clock.unix_timestamp), AirspaceError::PermitExpired);
-        }
-        AccessPolicy::Open => {} // always allowed
+    // Deny check first — no further state is examined for denied airspaces.
+    if airspace.policy == AccessPolicy::Deny {
+        return err!(AirspaceError::NoValidPermit);
     }
 
-    // Treasury must match the registered account
-    require_keys_eq!(
-        ctx.accounts.treasury.key(),
-        airspace.treasury,
-        AirspaceError::FeeTransferFailed
+    // Timestamp sanity: positive, not from the distant past, not fabricated.
+    require!(crossed_at > 0, AirspaceError::InvalidTimestamp);
+    require!(
+        crossed_at >= clock.unix_timestamp - 300,
+        AirspaceError::TimestampTooOld
+    );
+    require!(
+        crossed_at <= clock.unix_timestamp + 60,
+        AirspaceError::TimestampInFuture
     );
 
-    // Collect per-crossing fee if applicable
-    if airspace.fee_lamports > 0 {
-        system_program::transfer(
-            CpiContext::new(
-                ctx.accounts.system_program.key(),
-                system_program::Transfer {
-                    from: ctx.accounts.drone.to_account_info(),
-                    to: ctx.accounts.treasury.to_account_info(),
-                },
-            ),
-            airspace.fee_lamports,
-        )?;
+    // Coordinate range validation (mirrors record_delivery).
+    require!(
+        lat >= -900_000_000 && lat <= 900_000_000,
+        AirspaceError::LatitudeOutOfRange
+    );
+    require!(
+        lon >= -1_800_000_000 && lon <= 1_800_000_000,
+        AirspaceError::LongitudeOutOfRange
+    );
+
+    // Altitude bounds declared for this airspace.
+    require!(
+        alt_m >= airspace.min_alt_m && alt_m <= airspace.max_alt_m,
+        AirspaceError::AltitudeOutOfBounds
+    );
+
+    // Policy-specific permit check and fee collection.
+    // Open policy: unconditionally allowed, no fee charged.
+    // Permit/Auction: valid permit required; fee collected if configured.
+    // Track the amount actually transferred so the event is accurate.
+    let mut fee_paid: u64 = 0;
+
+    match airspace.policy {
+        AccessPolicy::Open => {} // no permit, no fee
+        AccessPolicy::Permit | AccessPolicy::Auction => {
+            let permit = ctx
+                .accounts
+                .permit
+                .as_ref()
+                .ok_or(AirspaceError::NoValidPermit)?;
+            require!(permit.is_active(clock.unix_timestamp), AirspaceError::PermitExpired);
+
+            // Collect per-crossing fee when configured.
+            if airspace.fee_lamports > 0 {
+                require_keys_eq!(
+                    ctx.accounts.treasury.key(),
+                    airspace.treasury,
+                    AirspaceError::FeeTransferFailed
+                );
+                system_program::transfer(
+                    CpiContext::new(
+                        ctx.accounts.system_program.key(),
+                        system_program::Transfer {
+                            from: ctx.accounts.drone.to_account_info(),
+                            to: ctx.accounts.treasury.to_account_info(),
+                        },
+                    ),
+                    airspace.fee_lamports,
+                )?;
+                fee_paid = airspace.fee_lamports;
+            }
+        }
+        // Deny was already handled above.
+        AccessPolicy::Deny => unreachable!(),
     }
 
     emit!(CrossingRecorded {
@@ -109,7 +156,7 @@ pub fn handler(
         lon,
         alt_m,
         crossed_at,
-        fee_lamports: airspace.fee_lamports,
+        fee_lamports: fee_paid,
     });
 
     Ok(())

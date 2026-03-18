@@ -84,4 +84,28 @@ pub mod resq_airspace {
     ) -> Result<()> {
         instructions::record_crossing::handler(ctx, lat, lon, alt_m, crossed_at)
     }
+
+    /// Close an existing Permit account and reclaim its rent.  Owner-only.
+    ///
+    /// After closing, `grant_permit` can be called again for the same
+    /// (airspace, drone) pair to issue a fresh permit.
+    pub fn close_permit(ctx: Context<ClosePermit>) -> Result<()> {
+        instructions::close_permit::handler(ctx)
+    }
+
+    /// Update the treasury address that receives per-crossing fees.  Owner-only.
+    pub fn update_treasury(ctx: Context<UpdateTreasury>, treasury: Pubkey) -> Result<()> {
+        instructions::update_treasury::handler(ctx, treasury)
+    }
+
+    /// Transfer ownership of an airspace to a new authority.  Current owner must sign.
+    ///
+    /// This is the only recovery path when the owner key is compromised or
+    /// needs to be rotated.  After this call the old owner has no authority.
+    pub fn transfer_ownership(
+        ctx: Context<TransferOwnership>,
+        new_owner: Pubkey,
+    ) -> Result<()> {
+        instructions::transfer_ownership::handler(ctx, new_owner)
+    }
 }

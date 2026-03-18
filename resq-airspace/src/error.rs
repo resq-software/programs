@@ -42,4 +42,25 @@ pub enum AirspaceError {
     /// expires_at is in the past.
     #[msg("Permit expiry must be in the future")]
     ExpiryInPast,
+    /// Drone altitude is outside the airspace's declared bounds.
+    #[msg("Drone altitude is outside the permitted altitude range for this airspace")]
+    AltitudeOutOfBounds,
+    /// crossed_at timestamp is zero or negative.
+    #[msg("crossed_at must be a positive Unix epoch value")]
+    InvalidTimestamp,
+    /// crossed_at timestamp is too far in the future.
+    #[msg("crossed_at must not be more than 60 seconds in the future")]
+    TimestampInFuture,
+    /// crossed_at timestamp is too far in the past (> 5 minutes before block time).
+    #[msg("crossed_at must be within 5 minutes of the current block time")]
+    TimestampTooOld,
+    /// Latitude is outside the valid range (−90° to +90° × 1e7).
+    #[msg("Latitude out of range: must be between -900_000_000 and 900_000_000")]
+    LatitudeOutOfRange,
+    /// Longitude is outside the valid range (−180° to +180° × 1e7).
+    #[msg("Longitude out of range: must be between -1_800_000_000 and 1_800_000_000")]
+    LongitudeOutOfRange,
+    /// Treasury pubkey is the zero address; fees would be permanently lost.
+    #[msg("Treasury must not be the zero address")]
+    InvalidTreasury,
 }

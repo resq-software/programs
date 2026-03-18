@@ -31,8 +31,9 @@ pub struct RecordDelivery<'info> {
     pub drone: Signer<'info>,
 
     /// The AirspaceAccount of the delivery target property (read-only reference).
-    /// CHECK: validated by the resq-airspace program; we only store the address.
-    pub airspace: UncheckedAccount<'info>,
+    /// Anchor validates owner == resq-airspace program ID **and** the 8-byte
+    /// discriminator, so a Permit PDA or any other account type is rejected.
+    pub airspace: Account<'info, resq_airspace::state::airspace_account::AirspaceAccount>,
 
     /// The new DeliveryRecord PDA, created by this instruction.
     #[account(

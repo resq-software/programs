@@ -33,4 +33,7 @@ pub enum DeliveryError {
     /// Longitude is outside the valid range (−180° to +180° × 1e7).
     #[msg("Longitude out of range: must be between -1_800_000_000 and 1_800_000_000")]
     LongitudeOutOfRange,
+    /// The provided airspace account is not owned by the resq-airspace program.
+    #[msg("Airspace account must be owned by the resq-airspace program")]
+    InvalidAirspace,
 }

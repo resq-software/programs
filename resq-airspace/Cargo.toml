@@ -16,7 +16,7 @@
 name = "resq-airspace"
 version = "0.1.0"
 edition = "2021"
-description = "ResQ Per-Property Airspace Account on-chain program (Solana/Anchor)"
+description = "ResQ Airspace Management on-chain program (Solana/Anchor)"
 
 [lib]
 crate-type = ["cdylib", "lib"]
@@ -34,6 +34,7 @@ idl-build = ["anchor-lang/idl-build"]
 anchor-lang = { workspace = true }
 
 [dev-dependencies]
+solana-account = { workspace = true }
 solana-account-info = { workspace = true }
 solana-instruction = { workspace = true }
 solana-keypair = { workspace = true }

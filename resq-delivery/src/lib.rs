@@ -26,6 +26,10 @@ pub use instructions::*;
 
 declare_id!("DeL1v3ry111111111111111111111111111111111111");
 
+/// Program ID of the resq-airspace program.  Used to verify that the `airspace`
+/// account passed to `record_delivery` is genuinely owned by that program.
+pub const AIRSPACE_PROGRAM_ID: Pubkey = pubkey!("A1rSpAcE111111111111111111111111111111111111");
+
 #[program]
 pub mod resq_delivery {
     use super::*;

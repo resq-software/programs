@@ -16,12 +16,18 @@
  * limitations under the License.
  */
 
+pub mod close_permit;
 pub mod grant_permit;
 pub mod initialize_property;
 pub mod record_crossing;
+pub mod transfer_ownership;
 pub mod update_policy;
+pub mod update_treasury;
 
+pub use close_permit::*;
 pub use grant_permit::*;
 pub use initialize_property::*;
 pub use record_crossing::*;
+pub use transfer_ownership::*;
 pub use update_policy::*;
+pub use update_treasury::*;
