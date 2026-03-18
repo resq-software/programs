@@ -15,32 +15,58 @@
  */
 
 use anchor_lang::{
-    system_program,
+    prelude::{AccountMeta as AnchorAccountMeta, Pubkey as AnchorPubkey},
+    system_program as anchor_system_program,
     AccountDeserialize,
     InstructionData,
     ToAccountMetas,
 };
-use solana_program_test::*;
-use solana_sdk::{
-    instruction::Instruction,
-    signature::Keypair,
-    signer::Signer,
-    transaction::Transaction,
-};
-use solana_sdk::pubkey::Pubkey;
+use solana_account_info::AccountInfo;
+use solana_instruction::{AccountMeta, Instruction};
+use solana_keypair::Keypair;
+use solana_program_test::{processor, ProgramTest};
+use solana_pubkey::Pubkey;
+use solana_sdk::program_error::ProgramError;
+use solana_signer::Signer;
+use solana_system_interface::instruction as system_instruction;
+use solana_transaction::Transaction;
+use solana_program_entrypoint::ProgramResult;
 
 use resq_delivery::state::delivery_record::DeliveryRecord;
 
 #[allow(unsafe_code)]
 fn process_instruction(
     program_id: &Pubkey,
-    accounts: &[anchor_lang::solana_program::account_info::AccountInfo],
+    accounts: &[AccountInfo],
     data: &[u8],
-) -> anchor_lang::solana_program::entrypoint::ProgramResult {
-    resq_delivery::entry(program_id, unsafe { std::mem::transmute(accounts) }, data)
+) -> ProgramResult {
+    let program_id = anchor_pubkey(*program_id);
+    resq_delivery::entry(&program_id, unsafe { std::mem::transmute(accounts) }, data)
+        .map_err(|err| ProgramError::from(u64::from(err)))
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+fn sdk_pubkey(value: AnchorPubkey) -> Pubkey {
+    Pubkey::new_from_array(value.to_bytes())
+}
+
+fn anchor_pubkey(value: Pubkey) -> AnchorPubkey {
+    AnchorPubkey::new_from_array(value.to_bytes())
+}
+
+fn sdk_account_metas(value: Vec<AnchorAccountMeta>) -> Vec<AccountMeta> {
+    value.into_iter()
+        .map(|meta| {
+            let pubkey = sdk_pubkey(meta.pubkey);
+            if meta.is_writable {
+                AccountMeta::new(pubkey, meta.is_signer)
+            } else {
+                AccountMeta::new_readonly(pubkey, meta.is_signer)
+            }
+        })
+        .collect()
+}
 
 fn cid_to_bytes(cid: &str) -> [u8; 64] {
     let mut buf = [0u8; 64];
@@ -53,7 +79,7 @@ fn cid_to_bytes(cid: &str) -> [u8; 64] {
 fn delivery_pda(drone: &Pubkey, delivered_at: i64) -> (Pubkey, u8) {
     Pubkey::find_program_address(
         &[b"delivery", drone.as_ref(), &delivered_at.to_le_bytes()],
-        &resq_delivery::id(),
+        &sdk_pubkey(resq_delivery::id()),
     )
 }
 
@@ -77,16 +103,16 @@ fn create_record_ix(
     .data();
 
     let accounts = resq_delivery::accounts::RecordDelivery {
-        drone: *drone,
-        airspace: *airspace,
-        delivery_record: *record_pda,
-        system_program: system_program::ID,
+        drone: anchor_pubkey(*drone),
+        airspace: anchor_pubkey(*airspace),
+        delivery_record: anchor_pubkey(*record_pda),
+        system_program: anchor_system_program::ID,
     }
     .to_account_metas(None);
 
     Instruction {
-        program_id: resq_delivery::id(),
-        accounts,
+        program_id: sdk_pubkey(resq_delivery::id()),
+        accounts: sdk_account_metas(accounts),
         data,
     }
 }
@@ -97,7 +123,7 @@ fn create_record_ix(
 async fn test_record_delivery_happy_path() {
     let program = ProgramTest::new(
         "resq_delivery",
-        resq_delivery::id(),
+        sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
@@ -120,7 +146,7 @@ async fn test_record_delivery_happy_path() {
         delivered_at,
     );
 
-    let fund_ix = solana_sdk::system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
     let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
     banks_client.process_transaction(tx).await.unwrap();
@@ -129,8 +155,8 @@ async fn test_record_delivery_happy_path() {
     let account = banks_client.get_account(record_pda).await.unwrap().unwrap();
     let record: DeliveryRecord = DeliveryRecord::try_deserialize(&mut account.data.as_slice()).unwrap();
 
-    assert_eq!(record.drone_pda, drone.pubkey());
-    assert_eq!(record.airspace_pda, airspace_pubkey);
+    assert_eq!(sdk_pubkey(record.drone_pda), drone.pubkey());
+    assert_eq!(sdk_pubkey(record.airspace_pda), airspace_pubkey);
     assert_eq!(record.lat, 407128000);
     assert_eq!(record.lon, -740060000);
     assert_eq!(record.alt_m, 50);
@@ -144,7 +170,7 @@ async fn test_record_delivery_happy_path() {
 async fn test_rejects_all_zero_cid() {
     let program = ProgramTest::new(
         "resq_delivery",
-        resq_delivery::id(),
+        sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
@@ -165,7 +191,7 @@ async fn test_rejects_all_zero_cid() {
         delivered_at,
     );
 
-    let fund_ix = solana_sdk::system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
     let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
 
@@ -177,7 +203,7 @@ async fn test_rejects_all_zero_cid() {
 async fn test_rejects_zero_timestamp() {
     let program = ProgramTest::new(
         "resq_delivery",
-        resq_delivery::id(),
+        sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
@@ -198,7 +224,7 @@ async fn test_rejects_zero_timestamp() {
         delivered_at,
     );
 
-    let fund_ix = solana_sdk::system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
     let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
 
@@ -210,7 +236,7 @@ async fn test_rejects_zero_timestamp() {
 async fn test_rejects_latitude_out_of_range() {
     let program = ProgramTest::new(
         "resq_delivery",
-        resq_delivery::id(),
+        sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
@@ -231,7 +257,7 @@ async fn test_rejects_latitude_out_of_range() {
         delivered_at,
     );
 
-    let fund_ix = solana_sdk::system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
     let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
 
@@ -243,7 +269,7 @@ async fn test_rejects_latitude_out_of_range() {
 async fn test_rejects_longitude_out_of_range() {
     let program = ProgramTest::new(
         "resq_delivery",
-        resq_delivery::id(),
+        sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
@@ -264,7 +290,7 @@ async fn test_rejects_longitude_out_of_range() {
         delivered_at,
     );
 
-    let fund_ix = solana_sdk::system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
     let mut tx = Transaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
     tx.sign(&[&payer, &drone], recent_blockhash);
 
@@ -276,7 +302,7 @@ async fn test_rejects_longitude_out_of_range() {
 async fn test_duplicate_delivery_fails() {
     let program = ProgramTest::new(
         "resq_delivery",
-        resq_delivery::id(),
+        sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
@@ -297,7 +323,7 @@ async fn test_duplicate_delivery_fails() {
         delivered_at,
     );
 
-    let fund_ix = solana_sdk::system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
     let mut tx1 = Transaction::new_with_payer(&[fund_ix, ix1], Some(&payer.pubkey()));
     tx1.sign(&[&payer, &drone], recent_blockhash);
     banks_client.process_transaction(tx1).await.unwrap();

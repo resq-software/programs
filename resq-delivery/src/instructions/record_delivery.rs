@@ -32,7 +32,7 @@ pub struct RecordDelivery<'info> {
 
     /// The AirspaceAccount of the delivery target property (read-only reference).
     /// CHECK: validated by the resq-airspace program; we only store the address.
-    pub airspace: AccountInfo<'info>,
+    pub airspace: UncheckedAccount<'info>,
 
     /// The new DeliveryRecord PDA, created by this instruction.
     #[account(

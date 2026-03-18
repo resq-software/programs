@@ -47,6 +47,11 @@ pub fn invoke_signed_unchecked(
     account_infos: &[AccountInfo],
     signers_seeds: &[&[&[u8]]],
 ) -> ProgramResult {
+    #[cfg(not(target_os = "solana"))]
+    {
+        solana_program::program::invoke_signed_unchecked(instruction, account_infos, signers_seeds)
+    }
+
     #[cfg(target_os = "solana")]
     {
         use stable_instruction_borrowed::StableInstructionBorrowed;
@@ -68,10 +73,5 @@ pub fn invoke_signed_unchecked(
             solana_program_entrypoint::SUCCESS => Ok(()),
             _ => Err(result.into()),
         }
-    }
-
-    #[cfg(not(target_os = "solana"))]
-    {
-        solana_program::program::invoke_signed_unchecked(instruction, account_infos, signers_seeds)
     }
 }

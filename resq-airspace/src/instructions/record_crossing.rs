@@ -45,7 +45,7 @@ pub struct RecordCrossing<'info> {
     /// The treasury account that receives the crossing fee (if any).
     /// CHECK: must match `airspace.treasury`; validated below.
     #[account(mut)]
-    pub treasury: AccountInfo<'info>,
+    pub treasury: UncheckedAccount<'info>,
 
     pub system_program: Program<'info, System>,
 }
@@ -92,7 +92,7 @@ pub fn handler(
     if airspace.fee_lamports > 0 {
         system_program::transfer(
             CpiContext::new(
-                ctx.accounts.system_program.to_account_info(),
+                ctx.accounts.system_program.key(),
                 system_program::Transfer {
                     from: ctx.accounts.drone.to_account_info(),
                     to: ctx.accounts.treasury.to_account_info(),
