@@ -63,4 +63,10 @@ pub enum AirspaceError {
     /// Treasury pubkey is the zero address; fees would be permanently lost.
     #[msg("Treasury must not be the zero address")]
     InvalidTreasury,
+    /// new_owner pubkey is the zero address; ownership would be permanently lost.
+    #[msg("New owner must not be the zero address")]
+    InvalidOwner,
+    /// drone_pda is the zero address; no key can sign as the default pubkey.
+    #[msg("Drone PDA must not be the zero address")]
+    InvalidDronePda,
 }

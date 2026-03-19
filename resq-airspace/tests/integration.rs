@@ -550,3 +550,412 @@ async fn test_update_policy() {
 
     assert_eq!(acc.policy, AccessPolicy::Deny);
 }
+
+#[tokio::test]
+async fn test_close_permit_happy_path() {
+    let program = ProgramTest::new(
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+
+    let owner = Keypair::new();
+    let drone = Keypair::new();
+    let pid = str_to_bytes32("property-close-permit");
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+    let (p_pda, _) = permit_pda(&airspace_pubkey, &drone.pubkey());
+
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
+        pid, 0, 100, 1, AccessPolicy::Permit, 0,
+    ).await;
+
+    let grant_data = resq_airspace::instruction::GrantPermit {
+        drone_pda: anchor_pubkey(drone.pubkey()), expires_at: 0,
+    }.data();
+    let grant_accounts = resq_airspace::accounts::GrantPermit {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: anchor_pubkey(p_pda),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+    let grant_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(grant_accounts),
+        data: grant_data,
+    };
+
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, grant_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &owner], recent_blockhash);
+    banks_client.process_transaction(tx).await.unwrap();
+
+    // Permit exists
+    assert!(banks_client.get_account(p_pda).await.unwrap().is_some());
+
+    let close_data = resq_airspace::instruction::ClosePermit {}.data();
+    let close_accounts = resq_airspace::accounts::ClosePermit {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: anchor_pubkey(p_pda),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+    let close_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(close_accounts),
+        data: close_data,
+    };
+
+    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
+    let mut tx2 = SolanaTransaction::new_with_payer(&[close_ix], Some(&payer.pubkey()));
+    tx2.sign(&[&payer, &owner], recent_blockhash2);
+    banks_client.process_transaction(tx2).await.unwrap();
+
+    // Permit is gone
+    assert!(banks_client.get_account(p_pda).await.unwrap().is_none());
+}
+
+#[tokio::test]
+async fn test_close_permit_rejects_non_owner() {
+    let program = ProgramTest::new(
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+
+    let owner = Keypair::new();
+    let attacker = Keypair::new();
+    let drone = Keypair::new();
+    let pid = str_to_bytes32("property-close-noauth");
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+    let (p_pda, _) = permit_pda(&airspace_pubkey, &drone.pubkey());
+
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
+        pid, 0, 100, 1, AccessPolicy::Permit, 0,
+    ).await;
+
+    let grant_data = resq_airspace::instruction::GrantPermit {
+        drone_pda: anchor_pubkey(drone.pubkey()), expires_at: 0,
+    }.data();
+    let grant_accounts = resq_airspace::accounts::GrantPermit {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: anchor_pubkey(p_pda),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+    let grant_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(grant_accounts),
+        data: grant_data,
+    };
+
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            system_instruction::transfer(&payer.pubkey(), &attacker.pubkey(), 1_000_000_000),
+            init_ix, grant_ix,
+        ],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &owner], recent_blockhash);
+    banks_client.process_transaction(tx).await.unwrap();
+
+    // Attacker (not owner) tries to close the permit
+    let close_data = resq_airspace::instruction::ClosePermit {}.data();
+    let close_accounts = resq_airspace::accounts::ClosePermit {
+        owner: anchor_pubkey(attacker.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: anchor_pubkey(p_pda),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+    let close_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(close_accounts),
+        data: close_data,
+    };
+
+    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
+    let mut tx2 = SolanaTransaction::new_with_payer(&[close_ix], Some(&payer.pubkey()));
+    tx2.sign(&[&payer, &attacker], recent_blockhash2);
+
+    let err = banks_client.process_transaction(tx2).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("Unauthorized")
+            || format!("{:?}", err).contains("Custom(6000)")
+            || format!("{:?}", err).contains("ConstraintHasOne")
+    );
+}
+
+#[tokio::test]
+async fn test_update_treasury_happy_path() {
+    let program = ProgramTest::new(
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+
+    let owner = Keypair::new();
+    let new_treasury = Keypair::new();
+    let pid = str_to_bytes32("property-treasury-upd");
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
+        pid, 0, 100, 1, AccessPolicy::Open, 0,
+    ).await;
+
+    let upd_data = resq_airspace::instruction::UpdateTreasury {
+        treasury: anchor_pubkey(new_treasury.pubkey()),
+    }.data();
+    let upd_accounts = resq_airspace::accounts::UpdateTreasury {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+    }.to_account_metas(None);
+    let upd_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(upd_accounts),
+        data: upd_data,
+    };
+
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, upd_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &owner], recent_blockhash);
+    banks_client.process_transaction(tx).await.unwrap();
+
+    let account = banks_client.get_account(airspace_pubkey).await.unwrap().unwrap();
+    let acc: AirspaceAccount = AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
+    assert_eq!(sdk_pubkey(acc.treasury), new_treasury.pubkey());
+}
+
+#[tokio::test]
+async fn test_update_treasury_rejects_zero_address() {
+    let program = ProgramTest::new(
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+
+    let owner = Keypair::new();
+    let pid = str_to_bytes32("property-treasury-zero");
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
+        pid, 0, 100, 1, AccessPolicy::Open, 0,
+    ).await;
+
+    let upd_data = resq_airspace::instruction::UpdateTreasury {
+        treasury: anchor_lang::prelude::Pubkey::default(),
+    }.data();
+    let upd_accounts = resq_airspace::accounts::UpdateTreasury {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+    }.to_account_metas(None);
+    let upd_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(upd_accounts),
+        data: upd_data,
+    };
+
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, upd_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &owner], recent_blockhash);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("InvalidTreasury")
+            || format!("{:?}", err).contains("Custom(6014)")
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_ownership_happy_path() {
+    let program = ProgramTest::new(
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+
+    let owner = Keypair::new();
+    let new_owner = Keypair::new();
+    let pid = str_to_bytes32("property-xfer-owner");
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
+        pid, 0, 100, 1, AccessPolicy::Open, 0,
+    ).await;
+
+    let xfer_data = resq_airspace::instruction::TransferOwnership {
+        new_owner: anchor_pubkey(new_owner.pubkey()),
+    }.data();
+    let xfer_accounts = resq_airspace::accounts::TransferOwnership {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+    }.to_account_metas(None);
+    let xfer_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(xfer_accounts),
+        data: xfer_data,
+    };
+
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, xfer_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &owner], recent_blockhash);
+    banks_client.process_transaction(tx).await.unwrap();
+
+    let account = banks_client.get_account(airspace_pubkey).await.unwrap().unwrap();
+    let acc: AirspaceAccount = AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
+    assert_eq!(sdk_pubkey(acc.owner), new_owner.pubkey());
+
+    // New owner can use owner-only instructions; old owner cannot.
+    let upd_data = resq_airspace::instruction::UpdatePolicy {
+        policy: AccessPolicy::Deny, fee_lamports: 0,
+    }.data();
+    let upd_accounts_new = resq_airspace::accounts::UpdatePolicy {
+        owner: anchor_pubkey(new_owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+    }.to_account_metas(None);
+    let upd_ix_new = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(upd_accounts_new),
+        data: upd_data.clone(),
+    };
+
+    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
+    let mut tx2 = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &new_owner.pubkey(), 1_000_000_000), upd_ix_new],
+        Some(&payer.pubkey()),
+    );
+    tx2.sign(&[&payer, &new_owner], recent_blockhash2);
+    banks_client.process_transaction(tx2).await.unwrap();
+
+    // Old owner is now rejected
+    let upd_accounts_old = resq_airspace::accounts::UpdatePolicy {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+    }.to_account_metas(None);
+    let upd_ix_old = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(upd_accounts_old),
+        data: upd_data,
+    };
+
+    let recent_blockhash3 = banks_client.get_latest_blockhash().await.unwrap();
+    let mut tx3 = SolanaTransaction::new_with_payer(&[upd_ix_old], Some(&payer.pubkey()));
+    tx3.sign(&[&payer, &owner], recent_blockhash3);
+
+    let err = banks_client.process_transaction(tx3).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("Unauthorized")
+            || format!("{:?}", err).contains("Custom(6000)")
+            || format!("{:?}", err).contains("ConstraintHasOne")
+    );
+}
+
+#[tokio::test]
+async fn test_transfer_ownership_rejects_zero_address() {
+    let program = ProgramTest::new(
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+
+    let owner = Keypair::new();
+    let pid = str_to_bytes32("property-xfer-zero");
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
+        pid, 0, 100, 1, AccessPolicy::Open, 0,
+    ).await;
+
+    let xfer_data = resq_airspace::instruction::TransferOwnership {
+        new_owner: anchor_lang::prelude::Pubkey::default(),
+    }.data();
+    let xfer_accounts = resq_airspace::accounts::TransferOwnership {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+    }.to_account_metas(None);
+    let xfer_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(xfer_accounts),
+        data: xfer_data,
+    };
+
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, xfer_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &owner], recent_blockhash);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("InvalidOwner")
+            || format!("{:?}", err).contains("Custom(6015)")
+    );
+}
+
+#[tokio::test]
+async fn test_grant_permit_rejects_zero_drone_pda() {
+    let program = ProgramTest::new(
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+
+    let owner = Keypair::new();
+    let pid = str_to_bytes32("property-zero-drone");
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+    // Derive PDA for the zero drone key
+    let zero_key = anchor_lang::prelude::Pubkey::default();
+    let (p_pda, _) = permit_pda(&airspace_pubkey, &sdk_pubkey(zero_key));
+
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
+        pid, 0, 100, 1, AccessPolicy::Permit, 0,
+    ).await;
+
+    let grant_data = resq_airspace::instruction::GrantPermit {
+        drone_pda: zero_key, expires_at: 0,
+    }.data();
+    let grant_accounts = resq_airspace::accounts::GrantPermit {
+        owner: anchor_pubkey(owner.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: anchor_pubkey(p_pda),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+    let grant_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(grant_accounts),
+        data: grant_data,
+    };
+
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, grant_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &owner], recent_blockhash);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("InvalidDronePda")
+            || format!("{:?}", err).contains("Custom(6016)")
+    );
+}

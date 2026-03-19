@@ -22,6 +22,7 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Keypair,
     signer::Signer,
+    sysvar::clock::Clock,
     transaction::Transaction,
 };
 use solana_account_info::AccountInfo;
@@ -154,10 +155,11 @@ async fn test_record_delivery_happy_path() {
         processor!(process_instruction),
     );
     let airspace_pubkey = seed_airspace_account(&mut program);
-    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let delivered_at = 1680000000_i64;
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    let delivered_at = clock.unix_timestamp - 30;
 
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
     let cid_str = "QmResQTestCID1234567890abcdefghijklmnopqrstuvwxyz";
@@ -201,10 +203,11 @@ async fn test_rejects_all_zero_cid() {
         processor!(process_instruction),
     );
     let airspace_pubkey = seed_airspace_account(&mut program);
-    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let delivered_at = 1680000001_i64;
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    let delivered_at = clock.unix_timestamp - 30;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
     let ix = create_record_ix(
@@ -267,10 +270,11 @@ async fn test_rejects_latitude_out_of_range() {
         processor!(process_instruction),
     );
     let airspace_pubkey = seed_airspace_account(&mut program);
-    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let delivered_at = 1680000002_i64;
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    let delivered_at = clock.unix_timestamp - 30;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
     let ix = create_record_ix(
@@ -300,10 +304,11 @@ async fn test_rejects_longitude_out_of_range() {
         processor!(process_instruction),
     );
     let airspace_pubkey = seed_airspace_account(&mut program);
-    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let delivered_at = 1680000003_i64;
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    let delivered_at = clock.unix_timestamp - 30;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
     let ix = create_record_ix(
@@ -333,10 +338,11 @@ async fn test_duplicate_delivery_fails() {
         processor!(process_instruction),
     );
     let airspace_pubkey = seed_airspace_account(&mut program);
-    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
-    let delivered_at = 1680000004_i64;
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    let delivered_at = clock.unix_timestamp - 30;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
     let ix1 = create_record_ix(
@@ -385,13 +391,14 @@ async fn test_rejects_airspace_not_owned_by_airspace_program() {
         sdk_pubkey(resq_delivery::id()),
         processor!(process_instruction),
     );
-    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
 
     let drone = Keypair::new();
     // This pubkey has no account, so it defaults to system-program-owned —
     // the owner constraint must reject it.
     let bogus_airspace = SolanaPubkey::new_unique();
-    let delivered_at = 1680000005_i64;
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    let delivered_at = clock.unix_timestamp - 30;
     let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
 
     let ix = create_record_ix(

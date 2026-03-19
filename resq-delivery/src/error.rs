@@ -36,4 +36,10 @@ pub enum DeliveryError {
     /// The provided airspace account is not owned by the resq-airspace program.
     #[msg("Airspace account must be owned by the resq-airspace program")]
     InvalidAirspace,
+    /// delivered_at is more than 5 minutes before the current block time.
+    #[msg("delivered_at must be within 5 minutes of the current block time")]
+    TimestampTooOld,
+    /// delivered_at is more than 60 seconds ahead of the current block time.
+    #[msg("delivered_at must not be more than 60 seconds in the future")]
+    TimestampInFuture,
 }

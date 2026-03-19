@@ -40,7 +40,7 @@ pub struct TransferOwnership<'info> {
 /// # Arguments
 /// * `new_owner` – pubkey that will become the new airspace authority
 pub fn handler(ctx: Context<TransferOwnership>, new_owner: Pubkey) -> Result<()> {
-    require!(new_owner != Pubkey::default(), AirspaceError::Unauthorized);
+    require!(new_owner != Pubkey::default(), AirspaceError::InvalidOwner);
     ctx.accounts.airspace.owner = new_owner;
 
     emit!(OwnershipTransferred {

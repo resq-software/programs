@@ -53,6 +53,7 @@ pub struct GrantPermit<'info> {
 /// * `drone_pda`  – the drone's Program-Derived Address
 /// * `expires_at` – Unix timestamp when the permit expires (0 = never)
 pub fn handler(ctx: Context<GrantPermit>, drone_pda: Pubkey, expires_at: i64) -> Result<()> {
+    require!(drone_pda != Pubkey::default(), AirspaceError::InvalidDronePda);
     let clock = Clock::get()?;
     require!(
         expires_at == 0 || expires_at > clock.unix_timestamp,

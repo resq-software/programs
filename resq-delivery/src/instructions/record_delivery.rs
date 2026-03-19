@@ -68,8 +68,17 @@ pub fn handler(
     alt_m: u32,
     delivered_at: i64,
 ) -> Result<()> {
+    let clock = Clock::get()?;
     require!(ipfs_cid != [0u8; 64], DeliveryError::EmptyCid);
     require!(delivered_at > 0, DeliveryError::InvalidTimestamp);
+    require!(
+        delivered_at >= clock.unix_timestamp - 300,
+        DeliveryError::TimestampTooOld
+    );
+    require!(
+        delivered_at <= clock.unix_timestamp + 60,
+        DeliveryError::TimestampInFuture
+    );
     require!(
         lat >= -900_000_000 && lat <= 900_000_000,
         DeliveryError::LatitudeOutOfRange
