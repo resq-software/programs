@@ -24,9 +24,6 @@ pub enum DeliveryError {
     /// The supplied timestamp is zero or negative.
     #[msg("delivered_at timestamp must be a positive Unix epoch value")]
     InvalidTimestamp,
-    /// The drone PDA provided does not match the signing authority.
-    #[msg("Drone PDA does not match the transaction signer")]
-    DroneMismatch,
     /// Latitude is outside the valid range (−90° to +90° × 1e7).
     #[msg("Latitude out of range: must be between -900_000_000 and 900_000_000")]
     LatitudeOutOfRange,

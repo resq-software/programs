@@ -293,7 +293,7 @@ async fn test_rejects_latitude_out_of_range() {
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(err.unwrap().to_string().contains("LatitudeOutOfRange") || format!("{:?}", err).contains("Custom(6003)"));
+    assert!(err.unwrap().to_string().contains("LatitudeOutOfRange") || format!("{:?}", err).contains("Custom(6002)"));
 }
 
 #[tokio::test]
@@ -327,7 +327,7 @@ async fn test_rejects_longitude_out_of_range() {
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(err.unwrap().to_string().contains("LongitudeOutOfRange") || format!("{:?}", err).contains("Custom(6004)"));
+    assert!(err.unwrap().to_string().contains("LongitudeOutOfRange") || format!("{:?}", err).contains("Custom(6003)"));
 }
 
 #[tokio::test]
@@ -419,10 +419,86 @@ async fn test_rejects_airspace_not_owned_by_airspace_program() {
     let err = banks_client.process_transaction(tx).await.unwrap_err();
     assert!(
         err.unwrap().to_string().contains("InvalidAirspace")
-            || format!("{:?}", err).contains("Custom(6005)")
+            || format!("{:?}", err).contains("Custom(6004)")
             || format!("{:?}", err).contains("IllegalOwner")
             || format!("{:?}", err).contains("ConstraintOwner")
             || format!("{:?}", err).contains("AccountNotInitialized")
             || format!("{:?}", err).contains("Custom(3012)")
+    );
+}
+
+#[tokio::test]
+async fn test_rejects_timestamp_too_old() {
+    let mut program = ProgramTest::new(
+        "resq_delivery",
+        sdk_pubkey(resq_delivery::id()),
+        processor!(process_instruction),
+    );
+    let airspace_pubkey = seed_airspace_account(&mut program);
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+
+    let drone = Keypair::new();
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    // 6 minutes in the past — outside the 5-minute look-back window.
+    let delivered_at = clock.unix_timestamp - 360;
+    let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
+
+    let ix = create_record_ix(
+        &drone.pubkey(),
+        &airspace_pubkey,
+        &record_pda,
+        cid_to_bytes("QmValidCID"),
+        0,
+        0,
+        0,
+        delivered_at,
+    );
+
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let mut tx = SolanaTransaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &drone], recent_blockhash);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("TimestampTooOld")
+            || format!("{:?}", err).contains("Custom(6005)")
+    );
+}
+
+#[tokio::test]
+async fn test_rejects_timestamp_in_future() {
+    let mut program = ProgramTest::new(
+        "resq_delivery",
+        sdk_pubkey(resq_delivery::id()),
+        processor!(process_instruction),
+    );
+    let airspace_pubkey = seed_airspace_account(&mut program);
+    let (mut banks_client, payer, recent_blockhash) = program.start().await;
+
+    let drone = Keypair::new();
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    // 2 minutes in the future — outside the 60-second ahead limit.
+    let delivered_at = clock.unix_timestamp + 120;
+    let (record_pda, _) = delivery_pda(&drone.pubkey(), delivered_at);
+
+    let ix = create_record_ix(
+        &drone.pubkey(),
+        &airspace_pubkey,
+        &record_pda,
+        cid_to_bytes("QmValidCID"),
+        0,
+        0,
+        0,
+        delivered_at,
+    );
+
+    let fund_ix = system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 10_000_000);
+    let mut tx = SolanaTransaction::new_with_payer(&[fund_ix, ix], Some(&payer.pubkey()));
+    tx.sign(&[&payer, &drone], recent_blockhash);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("TimestampInFuture")
+            || format!("{:?}", err).contains("Custom(6006)")
     );
 }

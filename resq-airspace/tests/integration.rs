@@ -959,3 +959,230 @@ async fn test_grant_permit_rejects_zero_drone_pda() {
             || format!("{:?}", err).contains("Custom(6016)")
     );
 }
+
+// ─── record_crossing validation tests ────────────────────────────────────────
+
+/// Helper: initialise an Open-policy airspace and return (airspace_pda, owner, treasury).
+async fn setup_open_airspace(
+    banks_client: &solana_program_test::BanksClient,
+    payer: &Keypair,
+    owner: &Keypair,
+    pid: [u8; 32],
+    min_alt_m: u32,
+    max_alt_m: u32,
+    recent_blockhash: solana_sdk::hash::Hash,
+) -> SolanaPubkey {
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+    let treasury = owner.pubkey(); // owner doubles as treasury for Open/no-fee airspaces
+
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &treasury,
+        pid, min_alt_m, max_alt_m, 1, AccessPolicy::Open, 0,
+    ).await;
+
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[payer, owner], recent_blockhash);
+    banks_client.process_transaction(tx).await.unwrap();
+    airspace_pubkey
+}
+
+#[tokio::test]
+async fn test_record_crossing_rejects_old_timestamp() {
+    let program = ProgramTest::new(
+        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let owner = Keypair::new();
+    let drone = Keypair::new();
+    let pid = str_to_bytes32("cross-old-ts");
+    let airspace_pubkey = setup_open_airspace(
+        &banks_client, &payer, &owner, pid, 0, 200, recent_blockhash,
+    ).await;
+
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    // 6 minutes in the past — outside the 5-minute look-back window.
+    let crossed_at = clock.unix_timestamp - 360;
+
+    let cross_data = resq_airspace::instruction::RecordCrossing {
+        lat: 0, lon: 0, alt_m: 50, crossed_at,
+    }.data();
+    let cross_accounts = resq_airspace::accounts::RecordCrossing {
+        drone: anchor_pubkey(drone.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: None,
+        treasury: anchor_pubkey(owner.pubkey()),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+
+    let cross_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(cross_accounts),
+        data: cross_data,
+    };
+    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &drone], recent_blockhash2);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("TimestampTooOld")
+            || format!("{:?}", err).contains("Custom(6011)")
+    );
+}
+
+#[tokio::test]
+async fn test_record_crossing_rejects_future_timestamp() {
+    let program = ProgramTest::new(
+        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let owner = Keypair::new();
+    let drone = Keypair::new();
+    let pid = str_to_bytes32("cross-future-ts");
+    let airspace_pubkey = setup_open_airspace(
+        &banks_client, &payer, &owner, pid, 0, 200, recent_blockhash,
+    ).await;
+
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    // 2 minutes in the future — outside the 60-second ahead limit.
+    let crossed_at = clock.unix_timestamp + 120;
+
+    let cross_data = resq_airspace::instruction::RecordCrossing {
+        lat: 0, lon: 0, alt_m: 50, crossed_at,
+    }.data();
+    let cross_accounts = resq_airspace::accounts::RecordCrossing {
+        drone: anchor_pubkey(drone.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: None,
+        treasury: anchor_pubkey(owner.pubkey()),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+
+    let cross_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(cross_accounts),
+        data: cross_data,
+    };
+    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &drone], recent_blockhash2);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("TimestampInFuture")
+            || format!("{:?}", err).contains("Custom(6010)")
+    );
+}
+
+#[tokio::test]
+async fn test_record_crossing_rejects_altitude_out_of_bounds() {
+    let program = ProgramTest::new(
+        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let owner = Keypair::new();
+    let drone = Keypair::new();
+    let pid = str_to_bytes32("cross-alt-bounds");
+    // min=50, max=200 — drone at alt_m=30 is below minimum
+    let airspace_pubkey = setup_open_airspace(
+        &banks_client, &payer, &owner, pid, 50, 200, recent_blockhash,
+    ).await;
+
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    let crossed_at = clock.unix_timestamp - 30;
+
+    let cross_data = resq_airspace::instruction::RecordCrossing {
+        lat: 0, lon: 0, alt_m: 30, crossed_at, // 30 < min_alt_m=50
+    }.data();
+    let cross_accounts = resq_airspace::accounts::RecordCrossing {
+        drone: anchor_pubkey(drone.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: None,
+        treasury: anchor_pubkey(owner.pubkey()),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+
+    let cross_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(cross_accounts),
+        data: cross_data,
+    };
+    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
+    let mut tx = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+        Some(&payer.pubkey()),
+    );
+    tx.sign(&[&payer, &drone], recent_blockhash2);
+
+    let err = banks_client.process_transaction(tx).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("AltitudeOutOfBounds")
+            || format!("{:?}", err).contains("Custom(6008)")
+    );
+}
+
+#[tokio::test]
+async fn test_record_crossing_permit_policy_requires_permit() {
+    let program = ProgramTest::new(
+        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
+    );
+    let (banks_client, payer, recent_blockhash) = program.start().await;
+    let owner = Keypair::new();
+    let drone = Keypair::new();
+    let pid = str_to_bytes32("cross-permit-req");
+    let (airspace_pubkey, _) = airspace_pda(&pid);
+
+    // Permit-policy airspace — crossings require a permit.
+    let init_ix = initialize_property_ix(
+        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
+        pid, 0, 200, 1, AccessPolicy::Permit, 0,
+    ).await;
+    let mut tx1 = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix],
+        Some(&payer.pubkey()),
+    );
+    tx1.sign(&[&payer, &owner], recent_blockhash);
+    banks_client.process_transaction(tx1).await.unwrap();
+
+    let clock: Clock = banks_client.get_sysvar().await.unwrap();
+    let crossed_at = clock.unix_timestamp - 30;
+
+    // Drone submits crossing with permit: None — should be rejected.
+    let cross_data = resq_airspace::instruction::RecordCrossing {
+        lat: 0, lon: 0, alt_m: 50, crossed_at,
+    }.data();
+    let cross_accounts = resq_airspace::accounts::RecordCrossing {
+        drone: anchor_pubkey(drone.pubkey()),
+        airspace: anchor_pubkey(airspace_pubkey),
+        permit: None,
+        treasury: anchor_pubkey(owner.pubkey()),
+        system_program: anchor_lang::system_program::ID,
+    }.to_account_metas(None);
+
+    let cross_ix = SolanaInstruction {
+        program_id: sdk_pubkey(resq_airspace::id()),
+        accounts: sdk_account_metas(cross_accounts),
+        data: cross_data,
+    };
+    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
+    let mut tx2 = SolanaTransaction::new_with_payer(
+        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+        Some(&payer.pubkey()),
+    );
+    tx2.sign(&[&payer, &drone], recent_blockhash2);
+
+    let err = banks_client.process_transaction(tx2).await.unwrap_err();
+    assert!(
+        err.unwrap().to_string().contains("NoValidPermit")
+            || format!("{:?}", err).contains("Custom(6004)")
+    );
+}
