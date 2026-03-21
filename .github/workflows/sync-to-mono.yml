@@ -33,13 +33,10 @@ jobs:
             standalone/ \
             monorepo/programs/
 
-      - name: Create PR in monorepo
-        env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
-          STANDALONE_SHA: ${{ github.sha }}
+      - name: Sync directly to monorepo
         working-directory: monorepo
         run: |
-          git config user.name  "resq-sync[bot]"
+          git config user.name "resq-sync[bot]"
           git config user.email "sync@resq.software"
           git add -A
           if git diff --cached --quiet; then
@@ -47,13 +44,19 @@ jobs:
             exit 0
           fi
           SHORT="${STANDALONE_SHA:0:7}"
-          BRANCH="sync/programs-${SHORT}"
-          git checkout -b "${BRANCH}"
           git commit -m "chore(programs): sync from resq-software/programs@${SHORT}"
-          git push origin "${BRANCH}"
-          gh pr create \
-            --repo resq-software/resQ \
-            --base main \
-            --head "${BRANCH}" \
-            --title "chore(programs): sync from resq-software/programs@${SHORT}" \
-            --body "Automated sync from resq-software/programs@${STANDALONE_SHA}."
+      - name: Sync directly to monorepo
+        env:
+          STANDALONE_SHA: ${{ github.sha }}
+        working-directory: monorepo
+        run: |
+          git config user.name "resq-sync[bot]"
+          git config user.email "sync@resq.software"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to sync"
+            exit 0
+          fi
+          SHORT="${STANDALONE_SHA:0:7}"
+          git commit -m "chore(programs): sync from resq-software/programs@${SHORT}"
+          git push origin main
