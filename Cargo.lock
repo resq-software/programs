@@ -4210,7 +4210,7 @@ name = "resq-airspace"
 version = "0.1.0"
 dependencies = [
  "anchor-lang",
- "solana-account 3.4.0",
+ "solana-account 4.1.0",
  "solana-account-info",
  "solana-instruction",
  "solana-keypair",
@@ -4230,7 +4230,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-lang",
  "resq-airspace",
- "solana-account 3.4.0",
+ "solana-account 4.1.0",
  "solana-account-info",
  "solana-instruction",
  "solana-keypair",
