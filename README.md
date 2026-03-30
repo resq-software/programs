@@ -1,9 +1,18 @@
 # ResQ Programs
 
-[![CI](https://img.shields.io/github/actions/workflow/status/resq-software/programs/ci.yml?branch=main&label=ci&style=flat-square)](https://github.com/resq-software/programs/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg?style=flat-square)](./LICENSE)
+[![CI](https://img.shields.io/github/actions/workflow/status/resq-software/programs/ci.yml?branch=main&label=ci&style=flat-square)](https://github.com/resq-software/programs/actions)
+[![Anchor](https://img.shields.io/badge/Anchor-1.0.0--rc.4-black?style=flat-square)](#)
+[![Solana](https://img.shields.io/badge/Solana-mainnet-9945FF?style=flat-square)](#)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square)](LICENSE)
 
-ResQ Programs is the decentralized coordination layer for autonomous aerospace and delivery operations built on Solana.
+> Solana Anchor on-chain programs for decentralized airspace management and autonomous delivery coordination.
+
+## Programs
+
+| Program | Description |
+|---------|-------------|
+| `resq-airspace` | Decentralized airspace registration and permitting |
+| `resq-delivery` | Autonomous delivery coordination and recording |
 
 ## Overview
 
