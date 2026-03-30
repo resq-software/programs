@@ -1,5 +1,0 @@
-target/
-.anchor/
-node_modules/
-.git/
-**/*.md
