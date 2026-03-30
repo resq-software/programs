@@ -17,16 +17,22 @@
 use anchor_lang::prelude::*;
 
 /// Access policy for an airspace envelope.
+///
+/// Variants are serialised by their implicit discriminant (Open=0, Permit=1,
+/// Deny=2, Auction=3). The explicit `= N` values were removed to satisfy
+/// borsh 1.x which requires `#[borsh(use_discriminant)]` for enums with
+/// explicit discriminants — an annotation that Anchor 1.x derive macros do
+/// not yet forward correctly. Wire format is unchanged.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
 pub enum AccessPolicy {
-    /// Any drone may transit without a permit or fee.
-    Open = 0,
-    /// A drone must hold a valid `Permit` account to transit.
-    Permit = 1,
-    /// No drone may transit under any circumstances.
-    Deny = 2,
-    /// Crossing fee is determined by an on-chain auction (future feature).
-    Auction = 3,
+    /// Any drone may transit without a permit or fee.  (discriminant = 0)
+    Open,
+    /// A drone must hold a valid `Permit` account to transit.  (discriminant = 1)
+    Permit,
+    /// No drone may transit under any circumstances.  (discriminant = 2)
+    Deny,
+    /// Crossing fee is determined by an on-chain auction (future feature).  (discriminant = 3)
+    Auction,
 }
 
 impl Default for AccessPolicy {
