@@ -1,3 +1,5 @@
+#!/bin/bash
+
 # Copyright 2026 ResQ
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -12,22 +14,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: PR Size Labeler
-
-on:
-  pull_request_target:
-    types: [opened, synchronize]
-
-permissions: {}
-
-jobs:
-  labeler:
-    permissions:
-      contents: read
-      pull-requests: write
-    runs-on: ubuntu-latest
-    steps:
-      - uses: pascalgn/size-label-action@56b489b027932ec0cf60438a1a5f1a19c8fc71ff # v0.5.7
-        env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-          IGNORED: ".*\\.lock$|Cargo\\.lock|\\.lock\\.yml$"
+ROOT_DIR=$(git rev-parse --show-toplevel)
+source "$ROOT_DIR/resq" "$@"
