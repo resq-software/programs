@@ -60,4 +60,4 @@ Install:
 curl -fsSL https://raw.githubusercontent.com/resq-software/dev/main/scripts/install-hooks.sh | sh
 ```
 
-Contract: [dev/AGENTS.md#git-hooks](https://github.com/resq-software/dev/blob/main/AGENTS.md#git-hooks). This repo's `.git-hooks/local-pre-push` runs `cargo check --workspace` so Anchor programs never push in a broken state.
+Contract: [resq-software/dev/AGENTS.md#git-hooks](https://github.com/resq-software/dev/blob/main/AGENTS.md#git-hooks). This repo's `.git-hooks/local-pre-push` runs `cargo check --workspace --quiet` and fails fast if cargo is unavailable, so Anchor programs never push in a broken state.

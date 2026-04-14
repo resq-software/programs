@@ -1365,37 +1365,41 @@ async fn test_record_crossing_rejects_latitude_out_of_range() {
     let clock: Clock = banks_client.get_sysvar().await.unwrap();
     let crossed_at = clock.unix_timestamp - 30;
 
-    let cross_data = resq_airspace::instruction::RecordCrossing {
-        lat: 900_000_001, // just above +90°×1e7
-        lon: 0,
-        alt_m: 50,
-        crossed_at,
-    }.data();
-    let cross_accounts = resq_airspace::accounts::RecordCrossing {
-        drone: anchor_pubkey(drone.pubkey()),
-        airspace: anchor_pubkey(airspace_pubkey),
-        permit: None,
-        treasury: anchor_pubkey(owner.pubkey()),
-        system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
-    let cross_ix = SolanaInstruction {
-        program_id: sdk_pubkey(resq_airspace::id()),
-        accounts: sdk_account_metas(cross_accounts),
-        data: cross_data,
-    };
+    // Check both the upper (+90°×1e7 + 1) and lower (-90°×1e7 - 1) bounds.
+    for (label, bad_lat) in [("upper", 900_000_001_i64), ("lower", -900_000_001_i64)] {
+        let cross_data = resq_airspace::instruction::RecordCrossing {
+            lat: bad_lat,
+            lon: 0,
+            alt_m: 50,
+            crossed_at,
+        }.data();
+        let cross_accounts = resq_airspace::accounts::RecordCrossing {
+            drone: anchor_pubkey(drone.pubkey()),
+            airspace: anchor_pubkey(airspace_pubkey),
+            permit: None,
+            treasury: anchor_pubkey(owner.pubkey()),
+            system_program: anchor_lang::system_program::ID,
+        }.to_account_metas(None);
+        let cross_ix = SolanaInstruction {
+            program_id: sdk_pubkey(resq_airspace::id()),
+            accounts: sdk_account_metas(cross_accounts),
+            data: cross_data,
+        };
 
-    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
-    let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
-        Some(&payer.pubkey()),
-    );
-    tx.sign(&[&payer, &drone], recent_blockhash2);
+        let blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        let mut tx = SolanaTransaction::new_with_payer(
+            &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+            Some(&payer.pubkey()),
+        );
+        tx.sign(&[&payer, &drone], blockhash);
 
-    let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(
-        err.unwrap().to_string().contains("LatitudeOutOfRange")
-            || format!("{:?}", err).contains("Custom(6012)")
-    );
+        let err = banks_client.process_transaction(tx).await.unwrap_err();
+        assert!(
+            err.unwrap().to_string().contains("LatitudeOutOfRange")
+                || format!("{:?}", err).contains("Custom(6012)"),
+            "{} bound (lat={}) did not produce LatitudeOutOfRange", label, bad_lat
+        );
+    }
 }
 
 #[tokio::test]
@@ -1414,37 +1418,41 @@ async fn test_record_crossing_rejects_longitude_out_of_range() {
     let clock: Clock = banks_client.get_sysvar().await.unwrap();
     let crossed_at = clock.unix_timestamp - 30;
 
-    let cross_data = resq_airspace::instruction::RecordCrossing {
-        lat: 0,
-        lon: -1_800_000_001, // just below -180°×1e7
-        alt_m: 50,
-        crossed_at,
-    }.data();
-    let cross_accounts = resq_airspace::accounts::RecordCrossing {
-        drone: anchor_pubkey(drone.pubkey()),
-        airspace: anchor_pubkey(airspace_pubkey),
-        permit: None,
-        treasury: anchor_pubkey(owner.pubkey()),
-        system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
-    let cross_ix = SolanaInstruction {
-        program_id: sdk_pubkey(resq_airspace::id()),
-        accounts: sdk_account_metas(cross_accounts),
-        data: cross_data,
-    };
+    // Check both the lower (-180°×1e7 - 1) and upper (+180°×1e7 + 1) bounds.
+    for (label, bad_lon) in [("lower", -1_800_000_001_i64), ("upper", 1_800_000_001_i64)] {
+        let cross_data = resq_airspace::instruction::RecordCrossing {
+            lat: 0,
+            lon: bad_lon,
+            alt_m: 50,
+            crossed_at,
+        }.data();
+        let cross_accounts = resq_airspace::accounts::RecordCrossing {
+            drone: anchor_pubkey(drone.pubkey()),
+            airspace: anchor_pubkey(airspace_pubkey),
+            permit: None,
+            treasury: anchor_pubkey(owner.pubkey()),
+            system_program: anchor_lang::system_program::ID,
+        }.to_account_metas(None);
+        let cross_ix = SolanaInstruction {
+            program_id: sdk_pubkey(resq_airspace::id()),
+            accounts: sdk_account_metas(cross_accounts),
+            data: cross_data,
+        };
 
-    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
-    let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
-        Some(&payer.pubkey()),
-    );
-    tx.sign(&[&payer, &drone], recent_blockhash2);
+        let blockhash = banks_client.get_latest_blockhash().await.unwrap();
+        let mut tx = SolanaTransaction::new_with_payer(
+            &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+            Some(&payer.pubkey()),
+        );
+        tx.sign(&[&payer, &drone], blockhash);
 
-    let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(
-        err.unwrap().to_string().contains("LongitudeOutOfRange")
-            || format!("{:?}", err).contains("Custom(6013)")
-    );
+        let err = banks_client.process_transaction(tx).await.unwrap_err();
+        assert!(
+            err.unwrap().to_string().contains("LongitudeOutOfRange")
+                || format!("{:?}", err).contains("Custom(6013)"),
+            "{} bound (lon={}) did not produce LongitudeOutOfRange", label, bad_lon
+        );
+    }
 }
 
 // ─── P11-05: grant_permit rejects expiry in the past ─────────────────────────
