@@ -50,3 +50,14 @@ cargo clippy --workspace -- -D warnings  # Lint
 - [Root README](README.md)
 - [Anchor.toml](Anchor.toml)
 - [Anchor Docs](https://anchor-lang.com)
+
+## Git hooks
+
+Canonical hooks from [`resq-software/dev`](https://github.com/resq-software/dev).
+Install:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/resq-software/dev/main/scripts/install-hooks.sh | sh
+```
+
+Contract: [resq-software/dev/AGENTS.md#git-hooks](https://github.com/resq-software/dev/blob/main/AGENTS.md#git-hooks). This repo's `.git-hooks/local-pre-push` runs `cargo check --workspace --quiet` and fails fast if cargo is unavailable, so Anchor programs never push in a broken state.
