@@ -1,0 +1,27 @@
+# Copyright 2026 ResQ Software
+# SPDX-License-Identifier: Apache-2.0
+#
+# Thin caller for the org-wide reusable security-scan workflow in
+# resq-software/.github.
+
+name: security
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    - cron: '17 6 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+  pull-requests: read
+
+jobs:
+  scan:
+    uses: resq-software/.github/.github/workflows/security-scan.yml@main
+    with:
+      languages: '["actions"]'
+    secrets: inherit
