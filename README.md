@@ -249,7 +249,7 @@ Configuration is primarily handled via `Anchor.toml` and environment variables.
 
 *   **`Anchor.toml`**: Specifies program IDs for different clusters (`localnet`, `devnet`), default provider settings (cluster URL, wallet), and script commands.
 *   **Environment Variables**:
-    *   `SOLANA_CLI_VERSION`: Not directly used, but `bootstrap.sh` and `flake.nix` pin specific versions.
+    *   `SOLANA_CLI_VERSION`: Not directly used, but `flake.nix` pins specific versions.
     *   `ANCHOR_VERSION`: Managed by `avm` for cross-version compatibility.
 
 ## Development
