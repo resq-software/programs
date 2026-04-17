@@ -1,0 +1,50 @@
+# Copyright 2026 ResQ Software
+# SPDX-License-Identifier: Apache-2.0
+#
+# Thin CI wrapper. Dispatches to the org-wide reusable rust-ci workflow
+# in resq-software/.github; the top-level `required` job aggregates the
+# result into a single status-check context consumed by the org ruleset
+# `default-branch-baseline`.
+#
+# Security scanning runs separately in security.yml.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust:
+    uses: resq-software/.github/.github/workflows/rust-ci.yml@5a723728feccfc5521dc4e5cb06237892d393553
+    with:
+      toolchain: stable
+      run-fmt: true
+      run-clippy: true
+      run-test: true
+      run-deny: false
+      run-coverage: false
+
+  required:
+    name: required
+    runs-on: ubuntu-latest
+    needs: [rust]
+    if: always()
+    steps:
+      - name: Aggregate
+        env:
+          RUST_RESULT: ${{ needs.rust.result }}
+        run: |
+          set -eu
+          case "$RUST_RESULT" in
+            success|skipped|"") echo "ok: rust=$RUST_RESULT" ;;
+            *) echo "::error::rust reusable returned: $RUST_RESULT"; exit 1 ;;
+          esac
