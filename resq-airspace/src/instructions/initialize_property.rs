@@ -69,7 +69,10 @@ pub fn handler(
         vertex_count >= 1 && vertex_count <= 8,
         AirspaceError::InvalidVertexCount
     );
-    require!(treasury != Pubkey::default(), AirspaceError::InvalidTreasury);
+    require!(
+        treasury != Pubkey::default(),
+        AirspaceError::InvalidTreasury
+    );
 
     let airspace_pda = ctx.accounts.airspace.key();
     let owner_key = ctx.accounts.owner.key();

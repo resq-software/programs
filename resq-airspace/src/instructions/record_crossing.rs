@@ -123,7 +123,10 @@ pub fn handler(
                 .permit
                 .as_ref()
                 .ok_or(AirspaceError::NoValidPermit)?;
-            require!(permit.is_active(clock.unix_timestamp), AirspaceError::PermitExpired);
+            require!(
+                permit.is_active(clock.unix_timestamp),
+                AirspaceError::PermitExpired
+            );
 
             // Collect per-crossing fee when configured.
             if airspace.fee_lamports > 0 {

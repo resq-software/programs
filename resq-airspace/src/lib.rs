@@ -102,10 +102,7 @@ pub mod resq_airspace {
     ///
     /// This is the only recovery path when the owner key is compromised or
     /// needs to be rotated.  After this call the old owner has no authority.
-    pub fn transfer_ownership(
-        ctx: Context<TransferOwnership>,
-        new_owner: Pubkey,
-    ) -> Result<()> {
+    pub fn transfer_ownership(ctx: Context<TransferOwnership>, new_owner: Pubkey) -> Result<()> {
         instructions::transfer_ownership::handler(ctx, new_owner)
     }
 }
