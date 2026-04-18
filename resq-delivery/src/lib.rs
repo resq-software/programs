@@ -1,4 +1,8 @@
-#![allow(unexpected_cfgs)]
+#![allow(
+    unexpected_cfgs,
+    clippy::too_many_arguments,
+    clippy::diverging_sub_expression
+)]
 
 /*
  * Copyright 2026 ResQ
