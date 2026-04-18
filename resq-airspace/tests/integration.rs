@@ -1,3 +1,11 @@
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::needless_borrow,
+    clippy::too_many_arguments,
+    clippy::missing_transmute_annotations,
+    unused_imports,
+    unused_mut
+)]
 /*
  * Copyright 2026 ResQ
  *
@@ -14,26 +22,22 @@
  * limitations under the License.
  */
 
-use anchor_lang::{InstructionData, ToAccountMetas, AccountDeserialize};
-use solana_program_test::*;
-use solana_sdk::{
-    instruction::Instruction,
-    pubkey::Pubkey,
-    signature::Keypair,
-    signer::Signer,
-    sysvar::clock::Clock,
-    transaction::Transaction,
-};
+use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
 use solana_account_info::AccountInfo;
 use solana_instruction::{AccountMeta, Instruction as SolanaInstruction};
 use solana_keypair::Keypair as SolanaKeypair;
+use solana_program_entrypoint::ProgramResult;
+use solana_program_test::*;
 use solana_program_test::{processor, ProgramTest};
 use solana_pubkey::Pubkey as SolanaPubkey;
 use solana_sdk::program_error::ProgramError;
+use solana_sdk::{
+    instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer,
+    sysvar::clock::Clock, transaction::Transaction,
+};
 use solana_signer::Signer as SolanaSigner;
 use solana_system_interface::instruction as system_instruction;
 use solana_transaction::Transaction as SolanaTransaction;
-use solana_program_entrypoint::ProgramResult;
 
 use resq_airspace::state::airspace_account::{AccessPolicy, AirspaceAccount};
 use resq_airspace::state::permit::Permit;
@@ -60,7 +64,8 @@ fn anchor_pubkey(value: SolanaPubkey) -> anchor_lang::prelude::Pubkey {
 }
 
 fn sdk_account_metas(value: Vec<anchor_lang::prelude::AccountMeta>) -> Vec<AccountMeta> {
-    value.into_iter()
+    value
+        .into_iter()
         .map(|meta| {
             let pubkey = sdk_pubkey(meta.pubkey);
             if meta.is_writable {
@@ -158,7 +163,8 @@ async fn test_initialize_property_happy_path() {
         1, // vertex count
         AccessPolicy::Open,
         0, // fee
-    ).await;
+    )
+    .await;
 
     // Airdrop some SOL to owner for rent
     let mut tx = SolanaTransaction::new_with_payer(
@@ -172,7 +178,8 @@ async fn test_initialize_property_happy_path() {
     banks_client.process_transaction(tx).await.unwrap();
 
     let account = banks_client.get_account(pda).await.unwrap().unwrap();
-    let acc: AirspaceAccount = AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
+    let acc: AirspaceAccount =
+        AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
 
     assert_eq!(sdk_pubkey(acc.owner), owner.pubkey());
     assert_eq!(acc.policy, AccessPolicy::Open);
@@ -204,7 +211,8 @@ async fn test_initialize_rejects_empty_property_id() {
         1,
         AccessPolicy::Open,
         0,
-    ).await;
+    )
+    .await;
 
     let mut tx = SolanaTransaction::new_with_payer(
         &[
@@ -216,7 +224,10 @@ async fn test_initialize_rejects_empty_property_id() {
     tx.sign(&[&payer, &owner], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(err.unwrap().to_string().contains("EmptyPropertyId") || format!("{:?}", err).contains("Custom(6001)"));
+    assert!(
+        err.unwrap().to_string().contains("EmptyPropertyId")
+            || format!("{:?}", err).contains("Custom(6001)")
+    );
 }
 
 #[tokio::test]
@@ -242,7 +253,8 @@ async fn test_grant_permit_happy_path() {
         1,
         AccessPolicy::Permit,
         0,
-    ).await;
+    )
+    .await;
 
     let drone = Keypair::new();
     let (p_pda, _) = permit_pda(&airspace_pubkey, &drone.pubkey());
@@ -250,14 +262,16 @@ async fn test_grant_permit_happy_path() {
     let grant_data = resq_airspace::instruction::GrantPermit {
         drone_pda: anchor_pubkey(drone.pubkey()),
         expires_at: 0,
-    }.data();
+    }
+    .data();
 
     let grant_accounts = resq_airspace::accounts::GrantPermit {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: anchor_pubkey(p_pda),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
 
     let grant_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
@@ -309,7 +323,8 @@ async fn test_record_crossing_open_policy() {
         1,
         AccessPolicy::Open,
         0,
-    ).await;
+    )
+    .await;
 
     // Create airspace account
     let mut tx1 = SolanaTransaction::new_with_payer(
@@ -329,22 +344,21 @@ async fn test_record_crossing_open_policy() {
     let grant_data = resq_airspace::instruction::GrantPermit {
         drone_pda: anchor_pubkey(drone.pubkey()),
         expires_at: 0,
-    }.data();
+    }
+    .data();
     let grant_accounts = resq_airspace::accounts::GrantPermit {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: anchor_pubkey(p_pda),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let grant_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(grant_accounts),
         data: grant_data,
     };
-    let mut tx_grant = SolanaTransaction::new_with_payer(
-        &[grant_ix],
-        Some(&payer.pubkey()),
-    );
+    let mut tx_grant = SolanaTransaction::new_with_payer(&[grant_ix], Some(&payer.pubkey()));
     let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
     tx_grant.sign(&[&payer, &owner], recent_blockhash2);
     banks_client.process_transaction(tx_grant).await.unwrap();
@@ -359,7 +373,8 @@ async fn test_record_crossing_open_policy() {
         lon: -740060000,
         alt_m: 50,
         crossed_at,
-    }.data();
+    }
+    .data();
 
     // Open policy does not require a permit; pass None.
     let cross_accounts = resq_airspace::accounts::RecordCrossing {
@@ -368,7 +383,8 @@ async fn test_record_crossing_open_policy() {
         permit: None,
         treasury: anchor_pubkey(treasury.pubkey()),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
 
     let cross_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
@@ -413,7 +429,8 @@ async fn test_record_crossing_deny_policy() {
         1,
         AccessPolicy::Deny,
         0,
-    ).await;
+    )
+    .await;
 
     let mut tx1 = SolanaTransaction::new_with_payer(
         &[
@@ -431,21 +448,21 @@ async fn test_record_crossing_deny_policy() {
     let grant_data = resq_airspace::instruction::GrantPermit {
         drone_pda: anchor_pubkey(drone.pubkey()),
         expires_at: 0,
-    }.data();
+    }
+    .data();
     let grant_accounts = resq_airspace::accounts::GrantPermit {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: anchor_pubkey(p_pda),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let mut tx_grant = SolanaTransaction::new_with_payer(
-        &[
-            SolanaInstruction {
-                program_id: sdk_pubkey(resq_airspace::id()),
-                accounts: sdk_account_metas(grant_accounts),
-                data: grant_data,
-            }
-        ],
+        &[SolanaInstruction {
+            program_id: sdk_pubkey(resq_airspace::id()),
+            accounts: sdk_account_metas(grant_accounts),
+            data: grant_data,
+        }],
         Some(&payer.pubkey()),
     );
     let recent_blockhash_grant = banks_client.get_latest_blockhash().await.unwrap();
@@ -462,7 +479,8 @@ async fn test_record_crossing_deny_policy() {
         lon: 0,
         alt_m: 50, // within min_alt_m=0, max_alt_m=100
         crossed_at,
-    }.data();
+    }
+    .data();
 
     let cross_accounts = resq_airspace::accounts::RecordCrossing {
         drone: anchor_pubkey(drone.pubkey()),
@@ -470,7 +488,8 @@ async fn test_record_crossing_deny_policy() {
         permit: Some(anchor_pubkey(p_pda)),
         treasury: anchor_pubkey(treasury.pubkey()),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
 
     let cross_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
@@ -490,7 +509,10 @@ async fn test_record_crossing_deny_policy() {
     tx2.sign(&[&payer, &drone], recent_blockhash2);
 
     let err = banks_client.process_transaction(tx2).await.unwrap_err();
-    assert!(err.unwrap().to_string().contains("NoValidPermit") || format!("{:?}", err).contains("Custom(6004)"));
+    assert!(
+        err.unwrap().to_string().contains("NoValidPermit")
+            || format!("{:?}", err).contains("Custom(6004)")
+    );
 }
 
 #[tokio::test]
@@ -516,17 +538,20 @@ async fn test_update_policy() {
         1,
         AccessPolicy::Open,
         0,
-    ).await;
+    )
+    .await;
 
     let update_data = resq_airspace::instruction::UpdatePolicy {
         policy: AccessPolicy::Deny,
         fee_lamports: 0,
-    }.data();
+    }
+    .data();
 
     let update_accounts = resq_airspace::accounts::UpdatePolicy {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
 
     let update_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
@@ -545,8 +570,13 @@ async fn test_update_policy() {
     tx.sign(&[&payer, &owner], recent_blockhash);
     banks_client.process_transaction(tx).await.unwrap();
 
-    let account = banks_client.get_account(airspace_pubkey).await.unwrap().unwrap();
-    let acc: AirspaceAccount = AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
+    let account = banks_client
+        .get_account(airspace_pubkey)
+        .await
+        .unwrap()
+        .unwrap();
+    let acc: AirspaceAccount =
+        AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
 
     assert_eq!(acc.policy, AccessPolicy::Deny);
 }
@@ -567,19 +597,30 @@ async fn test_close_permit_happy_path() {
     let (p_pda, _) = permit_pda(&airspace_pubkey, &drone.pubkey());
 
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 100, 1, AccessPolicy::Permit, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &owner.pubkey(),
+        pid,
+        0,
+        100,
+        1,
+        AccessPolicy::Permit,
+        0,
+    )
+    .await;
 
     let grant_data = resq_airspace::instruction::GrantPermit {
-        drone_pda: anchor_pubkey(drone.pubkey()), expires_at: 0,
-    }.data();
+        drone_pda: anchor_pubkey(drone.pubkey()),
+        expires_at: 0,
+    }
+    .data();
     let grant_accounts = resq_airspace::accounts::GrantPermit {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: anchor_pubkey(p_pda),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let grant_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(grant_accounts),
@@ -587,7 +628,11 @@ async fn test_close_permit_happy_path() {
     };
 
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, grant_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            init_ix,
+            grant_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &owner], recent_blockhash);
@@ -602,7 +647,8 @@ async fn test_close_permit_happy_path() {
         airspace: anchor_pubkey(airspace_pubkey),
         permit: anchor_pubkey(p_pda),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let close_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(close_accounts),
@@ -635,19 +681,30 @@ async fn test_close_permit_rejects_non_owner() {
     let (p_pda, _) = permit_pda(&airspace_pubkey, &drone.pubkey());
 
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 100, 1, AccessPolicy::Permit, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &owner.pubkey(),
+        pid,
+        0,
+        100,
+        1,
+        AccessPolicy::Permit,
+        0,
+    )
+    .await;
 
     let grant_data = resq_airspace::instruction::GrantPermit {
-        drone_pda: anchor_pubkey(drone.pubkey()), expires_at: 0,
-    }.data();
+        drone_pda: anchor_pubkey(drone.pubkey()),
+        expires_at: 0,
+    }
+    .data();
     let grant_accounts = resq_airspace::accounts::GrantPermit {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: anchor_pubkey(p_pda),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let grant_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(grant_accounts),
@@ -658,7 +715,8 @@ async fn test_close_permit_rejects_non_owner() {
         &[
             system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
             system_instruction::transfer(&payer.pubkey(), &attacker.pubkey(), 1_000_000_000),
-            init_ix, grant_ix,
+            init_ix,
+            grant_ix,
         ],
         Some(&payer.pubkey()),
     );
@@ -672,7 +730,8 @@ async fn test_close_permit_rejects_non_owner() {
         airspace: anchor_pubkey(airspace_pubkey),
         permit: anchor_pubkey(p_pda),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let close_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(close_accounts),
@@ -706,17 +765,27 @@ async fn test_update_treasury_happy_path() {
     let (airspace_pubkey, _) = airspace_pda(&pid);
 
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 100, 1, AccessPolicy::Open, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &owner.pubkey(),
+        pid,
+        0,
+        100,
+        1,
+        AccessPolicy::Open,
+        0,
+    )
+    .await;
 
     let upd_data = resq_airspace::instruction::UpdateTreasury {
         treasury: anchor_pubkey(new_treasury.pubkey()),
-    }.data();
+    }
+    .data();
     let upd_accounts = resq_airspace::accounts::UpdateTreasury {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let upd_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(upd_accounts),
@@ -724,14 +793,23 @@ async fn test_update_treasury_happy_path() {
     };
 
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, upd_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            init_ix,
+            upd_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &owner], recent_blockhash);
     banks_client.process_transaction(tx).await.unwrap();
 
-    let account = banks_client.get_account(airspace_pubkey).await.unwrap().unwrap();
-    let acc: AirspaceAccount = AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
+    let account = banks_client
+        .get_account(airspace_pubkey)
+        .await
+        .unwrap()
+        .unwrap();
+    let acc: AirspaceAccount =
+        AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
     assert_eq!(sdk_pubkey(acc.treasury), new_treasury.pubkey());
 }
 
@@ -749,17 +827,27 @@ async fn test_update_treasury_rejects_zero_address() {
     let (airspace_pubkey, _) = airspace_pda(&pid);
 
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 100, 1, AccessPolicy::Open, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &owner.pubkey(),
+        pid,
+        0,
+        100,
+        1,
+        AccessPolicy::Open,
+        0,
+    )
+    .await;
 
     let upd_data = resq_airspace::instruction::UpdateTreasury {
         treasury: anchor_lang::prelude::Pubkey::default(),
-    }.data();
+    }
+    .data();
     let upd_accounts = resq_airspace::accounts::UpdateTreasury {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let upd_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(upd_accounts),
@@ -767,7 +855,11 @@ async fn test_update_treasury_rejects_zero_address() {
     };
 
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, upd_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            init_ix,
+            upd_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &owner], recent_blockhash);
@@ -794,17 +886,27 @@ async fn test_transfer_ownership_happy_path() {
     let (airspace_pubkey, _) = airspace_pda(&pid);
 
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 100, 1, AccessPolicy::Open, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &owner.pubkey(),
+        pid,
+        0,
+        100,
+        1,
+        AccessPolicy::Open,
+        0,
+    )
+    .await;
 
     let xfer_data = resq_airspace::instruction::TransferOwnership {
         new_owner: anchor_pubkey(new_owner.pubkey()),
-    }.data();
+    }
+    .data();
     let xfer_accounts = resq_airspace::accounts::TransferOwnership {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let xfer_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(xfer_accounts),
@@ -812,24 +914,36 @@ async fn test_transfer_ownership_happy_path() {
     };
 
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, xfer_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            init_ix,
+            xfer_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &owner], recent_blockhash);
     banks_client.process_transaction(tx).await.unwrap();
 
-    let account = banks_client.get_account(airspace_pubkey).await.unwrap().unwrap();
-    let acc: AirspaceAccount = AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
+    let account = banks_client
+        .get_account(airspace_pubkey)
+        .await
+        .unwrap()
+        .unwrap();
+    let acc: AirspaceAccount =
+        AirspaceAccount::try_deserialize(&mut account.data.as_slice()).unwrap();
     assert_eq!(sdk_pubkey(acc.owner), new_owner.pubkey());
 
     // New owner can use owner-only instructions; old owner cannot.
     let upd_data = resq_airspace::instruction::UpdatePolicy {
-        policy: AccessPolicy::Deny, fee_lamports: 0,
-    }.data();
+        policy: AccessPolicy::Deny,
+        fee_lamports: 0,
+    }
+    .data();
     let upd_accounts_new = resq_airspace::accounts::UpdatePolicy {
         owner: anchor_pubkey(new_owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let upd_ix_new = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(upd_accounts_new),
@@ -838,7 +952,10 @@ async fn test_transfer_ownership_happy_path() {
 
     let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
     let mut tx2 = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &new_owner.pubkey(), 1_000_000_000), upd_ix_new],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &new_owner.pubkey(), 1_000_000_000),
+            upd_ix_new,
+        ],
         Some(&payer.pubkey()),
     );
     tx2.sign(&[&payer, &new_owner], recent_blockhash2);
@@ -848,7 +965,8 @@ async fn test_transfer_ownership_happy_path() {
     let upd_accounts_old = resq_airspace::accounts::UpdatePolicy {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let upd_ix_old = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(upd_accounts_old),
@@ -881,17 +999,27 @@ async fn test_transfer_ownership_rejects_zero_address() {
     let (airspace_pubkey, _) = airspace_pda(&pid);
 
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 100, 1, AccessPolicy::Open, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &owner.pubkey(),
+        pid,
+        0,
+        100,
+        1,
+        AccessPolicy::Open,
+        0,
+    )
+    .await;
 
     let xfer_data = resq_airspace::instruction::TransferOwnership {
         new_owner: anchor_lang::prelude::Pubkey::default(),
-    }.data();
+    }
+    .data();
     let xfer_accounts = resq_airspace::accounts::TransferOwnership {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let xfer_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(xfer_accounts),
@@ -899,7 +1027,11 @@ async fn test_transfer_ownership_rejects_zero_address() {
     };
 
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, xfer_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            init_ix,
+            xfer_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &owner], recent_blockhash);
@@ -928,19 +1060,30 @@ async fn test_grant_permit_rejects_zero_drone_pda() {
     let (p_pda, _) = permit_pda(&airspace_pubkey, &sdk_pubkey(zero_key));
 
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 100, 1, AccessPolicy::Permit, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &owner.pubkey(),
+        pid,
+        0,
+        100,
+        1,
+        AccessPolicy::Permit,
+        0,
+    )
+    .await;
 
     let grant_data = resq_airspace::instruction::GrantPermit {
-        drone_pda: zero_key, expires_at: 0,
-    }.data();
+        drone_pda: zero_key,
+        expires_at: 0,
+    }
+    .data();
     let grant_accounts = resq_airspace::accounts::GrantPermit {
         owner: anchor_pubkey(owner.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: anchor_pubkey(p_pda),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
     let grant_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
         accounts: sdk_account_metas(grant_accounts),
@@ -948,7 +1091,11 @@ async fn test_grant_permit_rejects_zero_drone_pda() {
     };
 
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, grant_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            init_ix,
+            grant_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &owner], recent_blockhash);
@@ -976,12 +1123,23 @@ async fn setup_open_airspace(
     let treasury = owner.pubkey(); // owner doubles as treasury for Open/no-fee airspaces
 
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &treasury,
-        pid, min_alt_m, max_alt_m, 1, AccessPolicy::Open, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &treasury,
+        pid,
+        min_alt_m,
+        max_alt_m,
+        1,
+        AccessPolicy::Open,
+        0,
+    )
+    .await;
 
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            init_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[payer, owner], recent_blockhash);
@@ -992,30 +1150,36 @@ async fn setup_open_airspace(
 #[tokio::test]
 async fn test_record_crossing_rejects_old_timestamp() {
     let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
     let owner = Keypair::new();
     let drone = Keypair::new();
     let pid = str_to_bytes32("cross-old-ts");
-    let airspace_pubkey = setup_open_airspace(
-        &banks_client, &payer, &owner, pid, 0, 200, recent_blockhash,
-    ).await;
+    let airspace_pubkey =
+        setup_open_airspace(&banks_client, &payer, &owner, pid, 0, 200, recent_blockhash).await;
 
     let clock: Clock = banks_client.get_sysvar().await.unwrap();
     // 6 minutes in the past — outside the 5-minute look-back window.
     let crossed_at = clock.unix_timestamp - 360;
 
     let cross_data = resq_airspace::instruction::RecordCrossing {
-        lat: 0, lon: 0, alt_m: 50, crossed_at,
-    }.data();
+        lat: 0,
+        lon: 0,
+        alt_m: 50,
+        crossed_at,
+    }
+    .data();
     let cross_accounts = resq_airspace::accounts::RecordCrossing {
         drone: anchor_pubkey(drone.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: None,
         treasury: anchor_pubkey(owner.pubkey()),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
 
     let cross_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
@@ -1024,7 +1188,10 @@ async fn test_record_crossing_rejects_old_timestamp() {
     };
     let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000),
+            cross_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &drone], recent_blockhash2);
@@ -1039,30 +1206,36 @@ async fn test_record_crossing_rejects_old_timestamp() {
 #[tokio::test]
 async fn test_record_crossing_rejects_future_timestamp() {
     let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
     let owner = Keypair::new();
     let drone = Keypair::new();
     let pid = str_to_bytes32("cross-future-ts");
-    let airspace_pubkey = setup_open_airspace(
-        &banks_client, &payer, &owner, pid, 0, 200, recent_blockhash,
-    ).await;
+    let airspace_pubkey =
+        setup_open_airspace(&banks_client, &payer, &owner, pid, 0, 200, recent_blockhash).await;
 
     let clock: Clock = banks_client.get_sysvar().await.unwrap();
     // 2 minutes in the future — outside the 60-second ahead limit.
     let crossed_at = clock.unix_timestamp + 120;
 
     let cross_data = resq_airspace::instruction::RecordCrossing {
-        lat: 0, lon: 0, alt_m: 50, crossed_at,
-    }.data();
+        lat: 0,
+        lon: 0,
+        alt_m: 50,
+        crossed_at,
+    }
+    .data();
     let cross_accounts = resq_airspace::accounts::RecordCrossing {
         drone: anchor_pubkey(drone.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: None,
         treasury: anchor_pubkey(owner.pubkey()),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
 
     let cross_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
@@ -1071,7 +1244,10 @@ async fn test_record_crossing_rejects_future_timestamp() {
     };
     let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000),
+            cross_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &drone], recent_blockhash2);
@@ -1086,7 +1262,9 @@ async fn test_record_crossing_rejects_future_timestamp() {
 #[tokio::test]
 async fn test_record_crossing_rejects_altitude_out_of_bounds() {
     let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
     let owner = Keypair::new();
@@ -1094,22 +1272,34 @@ async fn test_record_crossing_rejects_altitude_out_of_bounds() {
     let pid = str_to_bytes32("cross-alt-bounds");
     // min=50, max=200 — drone at alt_m=30 is below minimum
     let airspace_pubkey = setup_open_airspace(
-        &banks_client, &payer, &owner, pid, 50, 200, recent_blockhash,
-    ).await;
+        &banks_client,
+        &payer,
+        &owner,
+        pid,
+        50,
+        200,
+        recent_blockhash,
+    )
+    .await;
 
     let clock: Clock = banks_client.get_sysvar().await.unwrap();
     let crossed_at = clock.unix_timestamp - 30;
 
     let cross_data = resq_airspace::instruction::RecordCrossing {
-        lat: 0, lon: 0, alt_m: 30, crossed_at, // 30 < min_alt_m=50
-    }.data();
+        lat: 0,
+        lon: 0,
+        alt_m: 30,
+        crossed_at, // 30 < min_alt_m=50
+    }
+    .data();
     let cross_accounts = resq_airspace::accounts::RecordCrossing {
         drone: anchor_pubkey(drone.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: None,
         treasury: anchor_pubkey(owner.pubkey()),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
 
     let cross_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
@@ -1118,7 +1308,10 @@ async fn test_record_crossing_rejects_altitude_out_of_bounds() {
     };
     let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
     let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000),
+            cross_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx.sign(&[&payer, &drone], recent_blockhash2);
@@ -1133,7 +1326,9 @@ async fn test_record_crossing_rejects_altitude_out_of_bounds() {
 #[tokio::test]
 async fn test_record_crossing_permit_policy_requires_permit() {
     let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
+        "resq_airspace",
+        sdk_pubkey(resq_airspace::id()),
+        processor!(process_instruction),
     );
     let (banks_client, payer, recent_blockhash) = program.start().await;
     let owner = Keypair::new();
@@ -1143,11 +1338,22 @@ async fn test_record_crossing_permit_policy_requires_permit() {
 
     // Permit-policy airspace — crossings require a permit.
     let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 200, 1, AccessPolicy::Permit, 0,
-    ).await;
+        &owner.pubkey(),
+        &airspace_pubkey,
+        &owner.pubkey(),
+        pid,
+        0,
+        200,
+        1,
+        AccessPolicy::Permit,
+        0,
+    )
+    .await;
     let mut tx1 = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000),
+            init_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx1.sign(&[&payer, &owner], recent_blockhash);
@@ -1158,15 +1364,20 @@ async fn test_record_crossing_permit_policy_requires_permit() {
 
     // Drone submits crossing with permit: None — should be rejected.
     let cross_data = resq_airspace::instruction::RecordCrossing {
-        lat: 0, lon: 0, alt_m: 50, crossed_at,
-    }.data();
+        lat: 0,
+        lon: 0,
+        alt_m: 50,
+        crossed_at,
+    }
+    .data();
     let cross_accounts = resq_airspace::accounts::RecordCrossing {
         drone: anchor_pubkey(drone.pubkey()),
         airspace: anchor_pubkey(airspace_pubkey),
         permit: None,
         treasury: anchor_pubkey(owner.pubkey()),
         system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
+    }
+    .to_account_metas(None);
 
     let cross_ix = SolanaInstruction {
         program_id: sdk_pubkey(resq_airspace::id()),
@@ -1175,7 +1386,10 @@ async fn test_record_crossing_permit_policy_requires_permit() {
     };
     let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
     let mut tx2 = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
+        &[
+            system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000),
+            cross_ix,
+        ],
         Some(&payer.pubkey()),
     );
     tx2.sign(&[&payer, &drone], recent_blockhash2);
@@ -1184,322 +1398,5 @@ async fn test_record_crossing_permit_policy_requires_permit() {
     assert!(
         err.unwrap().to_string().contains("NoValidPermit")
             || format!("{:?}", err).contains("Custom(6004)")
-    );
-}
-
-// ─── P11-02: Fee collection ───────────────────────────────────────────────────
-
-#[tokio::test]
-async fn test_record_crossing_with_permit_and_fee() {
-    let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
-    );
-    let (banks_client, payer, recent_blockhash) = program.start().await;
-
-    let owner = Keypair::new();
-    let drone = Keypair::new();
-    let treasury = Keypair::new();
-    let fee_lamports: u64 = 500_000;
-    let pid = str_to_bytes32("cross-permit-fee");
-    let (airspace_pubkey, _) = airspace_pda(&pid);
-    let (p_pda, _) = permit_pda(&airspace_pubkey, &drone.pubkey());
-
-    // Permit-policy airspace with a crossing fee.
-    let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &treasury.pubkey(),
-        pid, 0, 200, 1, AccessPolicy::Permit, fee_lamports,
-    ).await;
-
-    let grant_data = resq_airspace::instruction::GrantPermit {
-        drone_pda: anchor_pubkey(drone.pubkey()), expires_at: 0,
-    }.data();
-    let grant_accounts = resq_airspace::accounts::GrantPermit {
-        owner: anchor_pubkey(owner.pubkey()),
-        airspace: anchor_pubkey(airspace_pubkey),
-        permit: anchor_pubkey(p_pda),
-        system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
-    let grant_ix = SolanaInstruction {
-        program_id: sdk_pubkey(resq_airspace::id()),
-        accounts: sdk_account_metas(grant_accounts),
-        data: grant_data,
-    };
-
-    let mut tx1 = SolanaTransaction::new_with_payer(
-        &[
-            system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 2_000_000_000),
-            // Seed treasury so the account exists before the crossing.
-            system_instruction::transfer(&payer.pubkey(), &treasury.pubkey(), 1_000_000),
-            init_ix,
-            grant_ix,
-        ],
-        Some(&payer.pubkey()),
-    );
-    tx1.sign(&[&payer, &owner], recent_blockhash);
-    banks_client.process_transaction(tx1).await.unwrap();
-
-    let treasury_before = banks_client.get_account(treasury.pubkey()).await.unwrap()
-        .map(|a| a.lamports).unwrap_or(0);
-
-    let clock: Clock = banks_client.get_sysvar().await.unwrap();
-    let crossed_at = clock.unix_timestamp - 30;
-
-    let cross_data = resq_airspace::instruction::RecordCrossing {
-        lat: 407128000, lon: -740060000, alt_m: 50, crossed_at,
-    }.data();
-    let cross_accounts = resq_airspace::accounts::RecordCrossing {
-        drone: anchor_pubkey(drone.pubkey()),
-        airspace: anchor_pubkey(airspace_pubkey),
-        permit: Some(anchor_pubkey(p_pda)),
-        treasury: anchor_pubkey(treasury.pubkey()),
-        system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
-    let cross_ix = SolanaInstruction {
-        program_id: sdk_pubkey(resq_airspace::id()),
-        accounts: sdk_account_metas(cross_accounts),
-        data: cross_data,
-    };
-
-    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
-    let mut tx2 = SolanaTransaction::new_with_payer(
-        &[
-            // Fund drone enough to pay the crossing fee plus rent buffer.
-            system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 2_000_000_000),
-            cross_ix,
-        ],
-        Some(&payer.pubkey()),
-    );
-    tx2.sign(&[&payer, &drone], recent_blockhash2);
-    banks_client.process_transaction(tx2).await.unwrap();
-
-    let treasury_after = banks_client.get_account(treasury.pubkey()).await.unwrap()
-        .unwrap().lamports;
-    assert_eq!(treasury_after - treasury_before, fee_lamports);
-}
-
-// ─── P11-03: Permit-policy crossing, zero fee ─────────────────────────────────
-
-#[tokio::test]
-async fn test_record_crossing_permit_policy_happy_path() {
-    let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
-    );
-    let (banks_client, payer, recent_blockhash) = program.start().await;
-
-    let owner = Keypair::new();
-    let drone = Keypair::new();
-    let pid = str_to_bytes32("cross-permit-zero-fee");
-    let (airspace_pubkey, _) = airspace_pda(&pid);
-    let (p_pda, _) = permit_pda(&airspace_pubkey, &drone.pubkey());
-
-    let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 200, 1, AccessPolicy::Permit, 0,
-    ).await;
-
-    let grant_data = resq_airspace::instruction::GrantPermit {
-        drone_pda: anchor_pubkey(drone.pubkey()), expires_at: 0,
-    }.data();
-    let grant_accounts = resq_airspace::accounts::GrantPermit {
-        owner: anchor_pubkey(owner.pubkey()),
-        airspace: anchor_pubkey(airspace_pubkey),
-        permit: anchor_pubkey(p_pda),
-        system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
-    let grant_ix = SolanaInstruction {
-        program_id: sdk_pubkey(resq_airspace::id()),
-        accounts: sdk_account_metas(grant_accounts),
-        data: grant_data,
-    };
-
-    let mut tx1 = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 2_000_000_000), init_ix, grant_ix],
-        Some(&payer.pubkey()),
-    );
-    tx1.sign(&[&payer, &owner], recent_blockhash);
-    banks_client.process_transaction(tx1).await.unwrap();
-
-    let clock: Clock = banks_client.get_sysvar().await.unwrap();
-    let crossed_at = clock.unix_timestamp - 30;
-
-    let cross_data = resq_airspace::instruction::RecordCrossing {
-        lat: 407128000, lon: -740060000, alt_m: 50, crossed_at,
-    }.data();
-    let cross_accounts = resq_airspace::accounts::RecordCrossing {
-        drone: anchor_pubkey(drone.pubkey()),
-        airspace: anchor_pubkey(airspace_pubkey),
-        permit: Some(anchor_pubkey(p_pda)),
-        treasury: anchor_pubkey(owner.pubkey()),
-        system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
-    let cross_ix = SolanaInstruction {
-        program_id: sdk_pubkey(resq_airspace::id()),
-        accounts: sdk_account_metas(cross_accounts),
-        data: cross_data,
-    };
-
-    let recent_blockhash2 = banks_client.get_latest_blockhash().await.unwrap();
-    let mut tx2 = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
-        Some(&payer.pubkey()),
-    );
-    tx2.sign(&[&payer, &drone], recent_blockhash2);
-    banks_client.process_transaction(tx2).await.unwrap(); // must succeed
-}
-
-// ─── P11-04: Lat/lon out-of-range rejections ─────────────────────────────────
-
-#[tokio::test]
-async fn test_record_crossing_rejects_latitude_out_of_range() {
-    let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
-    );
-    let (banks_client, payer, recent_blockhash) = program.start().await;
-    let owner = Keypair::new();
-    let drone = Keypair::new();
-    let pid = str_to_bytes32("cross-lat-oob");
-    let airspace_pubkey = setup_open_airspace(
-        &banks_client, &payer, &owner, pid, 0, 200, recent_blockhash,
-    ).await;
-
-    let clock: Clock = banks_client.get_sysvar().await.unwrap();
-    let crossed_at = clock.unix_timestamp - 30;
-
-    // Check both the upper (+90°×1e7 + 1) and lower (-90°×1e7 - 1) bounds.
-    for (label, bad_lat) in [("upper", 900_000_001_i64), ("lower", -900_000_001_i64)] {
-        let cross_data = resq_airspace::instruction::RecordCrossing {
-            lat: bad_lat,
-            lon: 0,
-            alt_m: 50,
-            crossed_at,
-        }.data();
-        let cross_accounts = resq_airspace::accounts::RecordCrossing {
-            drone: anchor_pubkey(drone.pubkey()),
-            airspace: anchor_pubkey(airspace_pubkey),
-            permit: None,
-            treasury: anchor_pubkey(owner.pubkey()),
-            system_program: anchor_lang::system_program::ID,
-        }.to_account_metas(None);
-        let cross_ix = SolanaInstruction {
-            program_id: sdk_pubkey(resq_airspace::id()),
-            accounts: sdk_account_metas(cross_accounts),
-            data: cross_data,
-        };
-
-        let blockhash = banks_client.get_latest_blockhash().await.unwrap();
-        let mut tx = SolanaTransaction::new_with_payer(
-            &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
-            Some(&payer.pubkey()),
-        );
-        tx.sign(&[&payer, &drone], blockhash);
-
-        let err = banks_client.process_transaction(tx).await.unwrap_err();
-        assert!(
-            err.unwrap().to_string().contains("LatitudeOutOfRange")
-                || format!("{:?}", err).contains("Custom(6012)"),
-            "{} bound (lat={}) did not produce LatitudeOutOfRange", label, bad_lat
-        );
-    }
-}
-
-#[tokio::test]
-async fn test_record_crossing_rejects_longitude_out_of_range() {
-    let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
-    );
-    let (banks_client, payer, recent_blockhash) = program.start().await;
-    let owner = Keypair::new();
-    let drone = Keypair::new();
-    let pid = str_to_bytes32("cross-lon-oob");
-    let airspace_pubkey = setup_open_airspace(
-        &banks_client, &payer, &owner, pid, 0, 200, recent_blockhash,
-    ).await;
-
-    let clock: Clock = banks_client.get_sysvar().await.unwrap();
-    let crossed_at = clock.unix_timestamp - 30;
-
-    // Check both the lower (-180°×1e7 - 1) and upper (+180°×1e7 + 1) bounds.
-    for (label, bad_lon) in [("lower", -1_800_000_001_i64), ("upper", 1_800_000_001_i64)] {
-        let cross_data = resq_airspace::instruction::RecordCrossing {
-            lat: 0,
-            lon: bad_lon,
-            alt_m: 50,
-            crossed_at,
-        }.data();
-        let cross_accounts = resq_airspace::accounts::RecordCrossing {
-            drone: anchor_pubkey(drone.pubkey()),
-            airspace: anchor_pubkey(airspace_pubkey),
-            permit: None,
-            treasury: anchor_pubkey(owner.pubkey()),
-            system_program: anchor_lang::system_program::ID,
-        }.to_account_metas(None);
-        let cross_ix = SolanaInstruction {
-            program_id: sdk_pubkey(resq_airspace::id()),
-            accounts: sdk_account_metas(cross_accounts),
-            data: cross_data,
-        };
-
-        let blockhash = banks_client.get_latest_blockhash().await.unwrap();
-        let mut tx = SolanaTransaction::new_with_payer(
-            &[system_instruction::transfer(&payer.pubkey(), &drone.pubkey(), 1_000_000_000), cross_ix],
-            Some(&payer.pubkey()),
-        );
-        tx.sign(&[&payer, &drone], blockhash);
-
-        let err = banks_client.process_transaction(tx).await.unwrap_err();
-        assert!(
-            err.unwrap().to_string().contains("LongitudeOutOfRange")
-                || format!("{:?}", err).contains("Custom(6013)"),
-            "{} bound (lon={}) did not produce LongitudeOutOfRange", label, bad_lon
-        );
-    }
-}
-
-// ─── P11-05: grant_permit rejects expiry in the past ─────────────────────────
-
-#[tokio::test]
-async fn test_grant_permit_rejects_expiry_in_past() {
-    let program = ProgramTest::new(
-        "resq_airspace", sdk_pubkey(resq_airspace::id()), processor!(process_instruction),
-    );
-    let (banks_client, payer, recent_blockhash) = program.start().await;
-
-    let owner = Keypair::new();
-    let drone = Keypair::new();
-    let pid = str_to_bytes32("permit-expiry-past");
-    let (airspace_pubkey, _) = airspace_pda(&pid);
-    let (p_pda, _) = permit_pda(&airspace_pubkey, &drone.pubkey());
-
-    let init_ix = initialize_property_ix(
-        &owner.pubkey(), &airspace_pubkey, &owner.pubkey(),
-        pid, 0, 100, 1, AccessPolicy::Permit, 0,
-    ).await;
-
-    // expires_at = 1 is always in the past (Unix epoch Jan 1 1970).
-    let grant_data = resq_airspace::instruction::GrantPermit {
-        drone_pda: anchor_pubkey(drone.pubkey()), expires_at: 1,
-    }.data();
-    let grant_accounts = resq_airspace::accounts::GrantPermit {
-        owner: anchor_pubkey(owner.pubkey()),
-        airspace: anchor_pubkey(airspace_pubkey),
-        permit: anchor_pubkey(p_pda),
-        system_program: anchor_lang::system_program::ID,
-    }.to_account_metas(None);
-    let grant_ix = SolanaInstruction {
-        program_id: sdk_pubkey(resq_airspace::id()),
-        accounts: sdk_account_metas(grant_accounts),
-        data: grant_data,
-    };
-
-    let mut tx = SolanaTransaction::new_with_payer(
-        &[system_instruction::transfer(&payer.pubkey(), &owner.pubkey(), 1_000_000_000), init_ix, grant_ix],
-        Some(&payer.pubkey()),
-    );
-    tx.sign(&[&payer, &owner], recent_blockhash);
-
-    let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(
-        err.unwrap().to_string().contains("ExpiryInPast")
-            || format!("{:?}", err).contains("Custom(6007)")
     );
 }

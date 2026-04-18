@@ -1,3 +1,11 @@
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::needless_borrow,
+    clippy::too_many_arguments,
+    clippy::missing_transmute_annotations,
+    unused_imports,
+    unused_mut
+)]
 /*
  * Copyright 2026 ResQ
  *
@@ -14,27 +22,23 @@
  * limitations under the License.
  */
 
-use anchor_lang::{InstructionData, ToAccountMetas, AccountDeserialize};
+use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
 use solana_account::Account;
-use solana_program_test::*;
-use solana_sdk::{
-    instruction::Instruction,
-    pubkey::Pubkey,
-    signature::Keypair,
-    signer::Signer,
-    sysvar::clock::Clock,
-    transaction::Transaction,
-};
 use solana_account_info::AccountInfo;
 use solana_instruction::{AccountMeta, Instruction as SolanaInstruction};
 use solana_keypair::Keypair as SolanaKeypair;
+use solana_program_entrypoint::ProgramResult;
+use solana_program_test::*;
 use solana_program_test::{processor, ProgramTest};
 use solana_pubkey::Pubkey as SolanaPubkey;
 use solana_sdk::program_error::ProgramError;
+use solana_sdk::{
+    instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer,
+    sysvar::clock::Clock, transaction::Transaction,
+};
 use solana_signer::Signer as SolanaSigner;
 use solana_system_interface::instruction as system_instruction;
 use solana_transaction::Transaction as SolanaTransaction;
-use solana_program_entrypoint::ProgramResult;
 
 use anchor_lang::Discriminator;
 use resq_airspace::state::airspace_account::AirspaceAccount;
@@ -62,7 +66,8 @@ fn anchor_pubkey(value: SolanaPubkey) -> anchor_lang::prelude::Pubkey {
 }
 
 fn sdk_account_metas(value: Vec<anchor_lang::prelude::AccountMeta>) -> Vec<AccountMeta> {
-    value.into_iter()
+    value
+        .into_iter()
         .map(|meta| {
             let pubkey = sdk_pubkey(meta.pubkey);
             if meta.is_writable {
@@ -182,7 +187,8 @@ async fn test_record_delivery_happy_path() {
 
     // Verify account state
     let account = banks_client.get_account(record_pda).await.unwrap().unwrap();
-    let record: DeliveryRecord = DeliveryRecord::try_deserialize(&mut account.data.as_slice()).unwrap();
+    let record: DeliveryRecord =
+        DeliveryRecord::try_deserialize(&mut account.data.as_slice()).unwrap();
 
     assert_eq!(sdk_pubkey(record.drone_pda), drone.pubkey());
     assert_eq!(sdk_pubkey(record.airspace_pda), airspace_pubkey);
@@ -191,7 +197,9 @@ async fn test_record_delivery_happy_path() {
     assert_eq!(record.alt_m, 50);
     assert_eq!(record.delivered_at, delivered_at);
 
-    let stored_cid_str = std::str::from_utf8(&record.ipfs_cid).unwrap().trim_matches(char::from(0));
+    let stored_cid_str = std::str::from_utf8(&record.ipfs_cid)
+        .unwrap()
+        .trim_matches(char::from(0));
     assert!(stored_cid_str.contains("QmResQTestCID"));
 }
 
@@ -226,7 +234,10 @@ async fn test_rejects_all_zero_cid() {
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(err.unwrap().to_string().contains("EmptyCid") || format!("{:?}", err).contains("Custom(6000)"));
+    assert!(
+        err.unwrap().to_string().contains("EmptyCid")
+            || format!("{:?}", err).contains("Custom(6000)")
+    );
 }
 
 #[tokio::test]
@@ -259,7 +270,10 @@ async fn test_rejects_zero_timestamp() {
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(err.unwrap().to_string().contains("InvalidTimestamp") || format!("{:?}", err).contains("Custom(6001)"));
+    assert!(
+        err.unwrap().to_string().contains("InvalidTimestamp")
+            || format!("{:?}", err).contains("Custom(6001)")
+    );
 }
 
 #[tokio::test]
@@ -293,7 +307,10 @@ async fn test_rejects_latitude_out_of_range() {
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(err.unwrap().to_string().contains("LatitudeOutOfRange") || format!("{:?}", err).contains("Custom(6002)"));
+    assert!(
+        err.unwrap().to_string().contains("LatitudeOutOfRange")
+            || format!("{:?}", err).contains("Custom(6002)")
+    );
 }
 
 #[tokio::test]
@@ -327,7 +344,10 @@ async fn test_rejects_longitude_out_of_range() {
     tx.sign(&[&payer, &drone], recent_blockhash);
 
     let err = banks_client.process_transaction(tx).await.unwrap_err();
-    assert!(err.unwrap().to_string().contains("LongitudeOutOfRange") || format!("{:?}", err).contains("Custom(6003)"));
+    assert!(
+        err.unwrap().to_string().contains("LongitudeOutOfRange")
+            || format!("{:?}", err).contains("Custom(6003)")
+    );
 }
 
 #[tokio::test]
@@ -381,7 +401,10 @@ async fn test_duplicate_delivery_fails() {
 
     let err = banks_client.process_transaction(tx2).await.unwrap_err();
     // Anchor initialization failure
-    assert!(format!("{:?}", err).contains("already in use") || format!("{:?}", err).contains("InstructionError"));
+    assert!(
+        format!("{:?}", err).contains("already in use")
+            || format!("{:?}", err).contains("InstructionError")
+    );
 }
 
 #[tokio::test]

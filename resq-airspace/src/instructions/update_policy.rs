@@ -37,11 +37,7 @@ pub struct UpdatePolicy<'info> {
 /// Update the access policy and/or per-crossing fee for an airspace.
 ///
 /// Only the registered owner may call this instruction.
-pub fn handler(
-    ctx: Context<UpdatePolicy>,
-    policy: AccessPolicy,
-    fee_lamports: u64,
-) -> Result<()> {
+pub fn handler(ctx: Context<UpdatePolicy>, policy: AccessPolicy, fee_lamports: u64) -> Result<()> {
     let airspace = &mut ctx.accounts.airspace;
     airspace.policy = policy;
     airspace.fee_lamports = fee_lamports;

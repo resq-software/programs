@@ -38,7 +38,10 @@ pub struct UpdateTreasury<'info> {
 /// # Arguments
 /// * `treasury` – new SOL account that will receive crossing fees
 pub fn handler(ctx: Context<UpdateTreasury>, treasury: Pubkey) -> Result<()> {
-    require!(treasury != Pubkey::default(), AirspaceError::InvalidTreasury);
+    require!(
+        treasury != Pubkey::default(),
+        AirspaceError::InvalidTreasury
+    );
     ctx.accounts.airspace.treasury = treasury;
 
     emit!(TreasuryUpdated {

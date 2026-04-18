@@ -1,3 +1,9 @@
+#![allow(
+    clippy::needless_pass_by_value,
+    unused_imports,
+    unused_mut,
+    clippy::missing_transmute_annotations
+)]
 /*
  * Copyright 2026 ResQ
  *
@@ -16,22 +22,19 @@
 
 use anchor_lang::{
     prelude::{AccountMeta as AnchorAccountMeta, Pubkey as AnchorPubkey},
-    system_program as anchor_system_program,
-    AccountDeserialize,
-    InstructionData,
-    ToAccountMetas,
+    system_program as anchor_system_program, AccountDeserialize, InstructionData, ToAccountMetas,
 };
 use resq_airspace::state::airspace_account::{AccessPolicy, AirspaceAccount};
 use solana_account_info::AccountInfo;
 use solana_instruction::{AccountMeta, Instruction};
 use solana_keypair::Keypair;
+use solana_program_entrypoint::ProgramResult;
 use solana_program_test::{processor, ProgramTest};
 use solana_pubkey::Pubkey;
 use solana_sdk::program_error::ProgramError;
 use solana_signer::Signer;
 use solana_system_interface::instruction as system_instruction;
 use solana_transaction::Transaction;
-use solana_program_entrypoint::ProgramResult;
 
 #[allow(unsafe_code)]
 fn process_instruction(
@@ -61,7 +64,8 @@ fn anchor_pubkey(value: Pubkey) -> AnchorPubkey {
 }
 
 fn sdk_account_metas(value: Vec<AnchorAccountMeta>) -> Vec<AccountMeta> {
-    value.into_iter()
+    value
+        .into_iter()
         .map(|meta| {
             let pubkey = sdk_pubkey(meta.pubkey);
             if meta.is_writable {
@@ -74,7 +78,10 @@ fn sdk_account_metas(value: Vec<AnchorAccountMeta>) -> Vec<AccountMeta> {
 }
 
 fn airspace_pda(property_id: &[u8; 32]) -> (Pubkey, u8) {
-    Pubkey::find_program_address(&[b"airspace", property_id], &sdk_pubkey(resq_airspace::id()))
+    Pubkey::find_program_address(
+        &[b"airspace", property_id],
+        &sdk_pubkey(resq_airspace::id()),
+    )
 }
 
 #[tokio::test]

@@ -17,9 +17,10 @@
 use anchor_lang::prelude::*;
 
 /// Access policy for an airspace envelope.
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum AccessPolicy {
     /// Any drone may transit without a permit or fee.
+    #[default]
     Open = 0,
     /// A drone must hold a valid `Permit` account to transit.
     Permit = 1,
@@ -27,12 +28,6 @@ pub enum AccessPolicy {
     Deny = 2,
     /// Crossing fee is determined by an on-chain auction (future feature).
     Auction = 3,
-}
-
-impl Default for AccessPolicy {
-    fn default() -> Self {
-        AccessPolicy::Open
-    }
 }
 
 /// Per-property 3D airspace envelope registered on-chain.
