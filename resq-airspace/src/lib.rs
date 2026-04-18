@@ -1,4 +1,8 @@
-#![allow(unexpected_cfgs)]
+#![allow(
+    unexpected_cfgs,
+    clippy::too_many_arguments,
+    clippy::diverging_sub_expression
+)]
 
 /*
  * Copyright 2026 ResQ
@@ -28,7 +32,6 @@ use state::airspace_account::AccessPolicy;
 declare_id!("A1rSpAcE111111111111111111111111111111111111");
 
 #[program]
-#[allow(clippy::too_many_arguments, clippy::diverging_sub_expression)]
 pub mod resq_airspace {
     use super::*;
 
