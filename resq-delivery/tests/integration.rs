@@ -1,4 +1,11 @@
-#![allow(clippy::needless_pass_by_value, unused_imports, unused_mut, clippy::missing_transmute_annotations)]
+#![allow(
+    clippy::needless_pass_by_value,
+    clippy::needless_borrow,
+    clippy::too_many_arguments,
+    clippy::missing_transmute_annotations,
+    unused_imports,
+    unused_mut
+)]
 /*
  * Copyright 2026 ResQ
  *
