@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   rust:
-    uses: resq-software/.github/.github/workflows/rust-ci.yml@f4b51a620aa1bf89c0bce4f434b36f92ff7d517d
+    uses: resq-software/.github/.github/workflows/rust-ci.yml@40fa987f5bc78d7569b9b76274f24d032ac0d7c8
     with:
       toolchain: stable
       run-fmt: true
