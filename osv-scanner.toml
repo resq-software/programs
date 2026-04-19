@@ -53,55 +53,6 @@ id = "RUSTSEC-2026-0097"
 # custom loggers with rand; the 0.8.x and 0.9.x pins are already on fixed versions.
 reason = "rand 0.7.3 transitive via solana-* deps; fixed versions (0.8.6, 0.9.3) already pinned for first-order users; no custom-logger code paths"
 
-# ── vendor/solana-program-test advisories (dev-only; vendored dev-dependency) ─
-# All entries below come from vendor/solana-program-test/Cargo.lock — a vendored
-# copy of upstream Solana's test harness we pull in only as a dev-dependency.
-# On-chain program bytecode ships none of these. Fix requires re-vendoring from
-# a newer Solana release; see vendor/ in this repo for context.
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2025-0056"
-# adler 1.0.2 unmaintained — migration to adler2 hasn't propagated to Solana.
-reason = "adler 1.0.2 in vendor/solana-program-test (dev-only); await Solana adler2 migration"
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0007"
-# bytes 1.10.1 advisory. Main workspace is already on 1.11.1; only the vendored
-# Cargo.lock still pins the old version.
-reason = "bytes 1.10.1 in vendor/solana-program-test/Cargo.lock (dev-only); main workspace on 1.11.1"
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0012"
-# keccak 0.1.5 advisory. Main workspace already on 0.1.6.
-reason = "keccak 0.1.5 in vendor/solana-program-test/Cargo.lock (dev-only); main workspace on 0.1.6"
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2024-0370"
-# proc-macro-error 1.0.4 is unmaintained.
-reason = "proc-macro-error 1.0.4 in vendor/solana-program-test (dev-only); upstream replacement is proc-macro-error2"
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0037"
-# quinn-proto 0.11.13 advisory (sev 8.7). Main workspace already on 0.11.14.
-# Vendor path is dev-only; on-chain programs never execute quinn.
-reason = "quinn-proto 0.11.13 in vendor/solana-program-test/Cargo.lock (dev-only); main workspace on 0.11.14"
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0049"
-# rustls-webpki 0.103.6 advisory. Main workspace already on 0.103.12.
-reason = "rustls-webpki 0.103.6 in vendor/solana-program-test/Cargo.lock (dev-only); main workspace on 0.103.12"
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0067"
-# tar 0.4.44 — sev 6.5 path traversal. Dev-only; invoked only by the test harness.
-reason = "tar 0.4.44 in vendor/solana-program-test (dev-only test harness); no user-controlled archives"
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0068"
-# tar 0.4.44 — sev 8.1 related path-handling advisory. Same scope as 0.4.44/0067.
-reason = "tar 0.4.44 in vendor/solana-program-test (dev-only test harness); no user-controlled archives"
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0009"
-# time 0.3.9 advisory. Very old pin, dev-only.
-reason = "time 0.3.9 in vendor/solana-program-test (dev-only); await upstream Solana bump"
+# Vendor-only advisories live in vendor/solana-program-test/osv-scanner.toml.
+# OSV-scanner treats each discovered lockfile directory as its own scan-config
+# scope, so vendor entries here would be reported as "unused ignores".
