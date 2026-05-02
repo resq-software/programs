@@ -80,11 +80,11 @@ pub fn handler(
         DeliveryError::TimestampInFuture
     );
     require!(
-        (-900_000_000..=900_000_000).contains(&lat),
+        lat >= -900_000_000 && lat <= 900_000_000,
         DeliveryError::LatitudeOutOfRange
     );
     require!(
-        (-1_800_000_000..=1_800_000_000).contains(&lon),
+        lon >= -1_800_000_000 && lon <= 1_800_000_000,
         DeliveryError::LongitudeOutOfRange
     );
 
