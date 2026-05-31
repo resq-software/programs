@@ -21,8 +21,18 @@ permissions:
 
 jobs:
   scan:
-    uses: resq-software/.github/.github/workflows/security-scan.yml@main
+    # SHA-pinned to satisfy the org "actions must be pinned to a full-length
+    # commit SHA" policy. The previous mutable `@main` ref tripped the zizmor
+    # `unpinned-uses` code-scanning alert and is the most likely cause of the
+    # scheduled-run startup failures. Trailing comment lets Dependabot still
+    # propose updates. Matches the SHA-pin convention already used in ci.yml.
+    uses: resq-software/.github/.github/workflows/security-scan.yml@ee2001974be1e5610cff3a2c669cfab95c7415e7 # main (2026-05-04, #20)
     with:
       languages: '["actions"]'
       enable-semgrep: true
+    # `inherit` is required here: the reusable workflow consumes org-level
+    # secrets (e.g. SEMGREP_APP_TOKEN) that are NOT declared in its
+    # `workflow_call.secrets` block, so they cannot be forwarded explicitly.
+    # Fully clearing the zizmor `secrets-inherit` warning needs an org-side
+    # `secrets:` declaration in security-scan.yml first (tracked separately).
     secrets: inherit
