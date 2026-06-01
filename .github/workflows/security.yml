@@ -26,6 +26,10 @@ jobs:
       contents: read            # checkout in the reusable's jobs
       security-events: write    # reusable uploads CodeQL/zizmor SARIF
       pull-requests: read       # reusable dependency-review reads PR diff
+      actions: read             # reusable CodeQL + zizmor jobs request it;
+                                # a reusable cannot exceed the caller's grant,
+                                # so omitting this fails the run at startup
+
     # SHA-pinned per org policy (mutable @main is rejected by zizmor
     # unpinned-uses). Trailing comment keeps Dependabot updates working;
     # matches the convention in ci.yml.
