@@ -14,25 +14,27 @@ on:
     - cron: '17 6 * * 1'
   workflow_dispatch:
 
-permissions:
-  contents: read
-  security-events: write
-  pull-requests: read
+# No workflow-level permissions: the only job is a reusable-workflow call,
+# and reusable callers must declare the forwarded scopes on the job itself.
+permissions: {}
 
 jobs:
   scan:
-    # SHA-pinned to satisfy the org "actions must be pinned to a full-length
-    # commit SHA" policy. The previous mutable `@main` ref tripped the zizmor
-    # `unpinned-uses` code-scanning alert and is the most likely cause of the
-    # scheduled-run startup failures. Trailing comment lets Dependabot still
-    # propose updates. Matches the SHA-pin convention already used in ci.yml.
-    uses: resq-software/.github/.github/workflows/security-scan.yml@ee2001974be1e5610cff3a2c669cfab95c7415e7 # main (2026-05-04, #20)
+    # Scopes are set here (not workflow-level) so they apply only to the
+    # reusable call — avoids zizmor `excessive-permissions`.
+    permissions:
+      contents: read            # checkout in the reusable's jobs
+      security-events: write    # reusable uploads CodeQL/zizmor SARIF
+      pull-requests: read       # reusable dependency-review reads PR diff
+    # SHA-pinned per org policy (mutable @main is rejected by zizmor
+    # unpinned-uses). Trailing comment keeps Dependabot updates working;
+    # matches the convention in ci.yml.
+    uses: resq-software/.github/.github/workflows/security-scan.yml@b48036af2c8f012f547979c29c819e1a19caf406 # main (2026-06-01, #21)
     with:
       languages: '["actions"]'
       enable-semgrep: true
-    # `inherit` is required here: the reusable workflow consumes org-level
-    # secrets (e.g. SEMGREP_APP_TOKEN) that are NOT declared in its
-    # `workflow_call.secrets` block, so they cannot be forwarded explicitly.
-    # Fully clearing the zizmor `secrets-inherit` warning needs an org-side
-    # `secrets:` declaration in security-scan.yml first (tracked separately).
-    secrets: inherit
+    # Forward only the secret this caller needs by name (semgrep is the only
+    # enabled token-consuming scanner) instead of `secrets: inherit`, which
+    # hands the reusable ALL of this repo's secrets — zizmor secrets-inherit.
+    secrets:
+      SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
