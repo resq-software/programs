@@ -193,8 +193,8 @@ branch was fully reverted; this document is the result.
 ## 7. Verification commands
 
 ```bash
-# version spread in the resolved tree
-grep -A1 '^name = "solana-' Cargo.lock | grep version | sort | uniq -c
+# version spread in the resolved tree (robust; keeps crate names)
+cargo tree --prefix none | grep '^solana-' | sort -u
 
 # confirm program-test is plain cargo-vendor output (not a fork)
 diff vendor/solana-program-test/Cargo.toml.orig vendor/solana-program-test/Cargo.toml
