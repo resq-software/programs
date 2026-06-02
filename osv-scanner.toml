@@ -53,6 +53,10 @@ id = "RUSTSEC-2026-0097"
 # custom loggers with rand; the 0.8.x and 0.9.x pins are already on fixed versions.
 reason = "rand 0.7.3 transitive via solana-* deps; fixed versions (0.8.6, 0.9.3) already pinned for first-order users; no custom-logger code paths"
 
-# Vendor-only advisories live in vendor/solana-program-test/osv-scanner.toml.
-# OSV-scanner treats each discovered lockfile directory as its own scan-config
-# scope, so vendor entries here would be reported as "unused ignores".
+# The vendored solana-program-test crate is a [patch.crates-io] path
+# dependency: Cargo resolves it through THIS root Cargo.lock, never the
+# nested vendor/solana-program-test/Cargo.lock. That nested lockfile was
+# therefore unused build-wise but caused osv-scanner to scan it as a
+# separate project and report false positives — so it (and its companion
+# osv-scanner.toml) were removed, matching the sibling vendored crates
+# vendor/solana-invoke and vendor/solana-keypair, which ship no lockfile.
