@@ -91,3 +91,51 @@ reason = "tar 0.4.44 — dev-only test harness; no user-controlled archives"
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0009"
 reason = "time 0.3.9 — dev-only; await upstream Solana bump"
+
+# ── openssl 0.10.74 (vendored solana-program-test dev-dep) ──────────────────
+# The main workspace tracks openssl 0.10.80 (resq-software/programs#31); this
+# vendored copy still pins 0.10.74. Dev-only test harness — on-chain BPF ships
+# no openssl. Re-vendor from a newer Solana release to clear.
+[[IgnoredVulns]]
+id = "GHSA-8c75-8mhr-p7r9"
+reason = "openssl 0.10.74 — dev-only vendored solana-program-test; main workspace on 0.10.80"
+
+[[IgnoredVulns]]
+id = "GHSA-ghm9-cr32-g9qj"
+reason = "openssl 0.10.74 — dev-only vendored solana-program-test; main workspace on 0.10.80"
+
+[[IgnoredVulns]]
+id = "GHSA-hppc-g8h3-xhp3"
+reason = "openssl 0.10.74 — dev-only vendored solana-program-test; main workspace on 0.10.80"
+
+[[IgnoredVulns]]
+id = "GHSA-phqj-4mhp-q6mq"
+reason = "openssl 0.10.74 — dev-only vendored solana-program-test; main workspace on 0.10.80"
+
+[[IgnoredVulns]]
+id = "GHSA-pqf5-4pqq-29f5"
+reason = "openssl 0.10.74 — dev-only vendored solana-program-test; main workspace on 0.10.80"
+
+[[IgnoredVulns]]
+id = "GHSA-xmgf-hq76-4vx2"
+reason = "openssl 0.10.74 — dev-only vendored solana-program-test; main workspace on 0.10.80"
+
+[[IgnoredVulns]]
+id = "GHSA-xp3w-r5p5-63rr"
+reason = "openssl 0.10.74 — dev-only vendored solana-program-test; main workspace on 0.10.80"
+
+[[IgnoredVulns]]
+id = "GHSA-xv59-967r-8726"
+reason = "openssl 0.10.74 — dev-only vendored solana-program-test; main workspace on 0.10.80"
+
+# ── rustls-webpki / tar — GHSA aliases osv-scanner matches on ───────────────
+# Same packages already ignored above by RUSTSEC id, but osv-scanner reports
+# these advisories under their GHSA/newer RUSTSEC ids, so they must be listed
+# explicitly. Dev-only vendored test harness.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0104"
+reason = "rustls-webpki 0.103.6 — dev-only vendored solana-program-test; main workspace on 0.103.13+"
+
+[[IgnoredVulns]]
+id = "GHSA-3pv8-6f4r-ffg2"
+reason = "tar 0.4.44 — dev-only vendored test harness; no user-controlled archives; main workspace on 0.4.46"
