@@ -60,3 +60,11 @@ reason = "rand 0.7.3 transitive via solana-* deps; fixed versions (0.8.6, 0.9.3)
 # separate project and report false positives — so it (and its companion
 # osv-scanner.toml) were removed, matching the sibling vendored crates
 # vendor/solana-invoke and vendor/solana-keypair, which ship no lockfile.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0173"
+# proc-macro-error2 2.0.1 is a build-time proc-macro helper pulled in transitively
+# via anchor-lang's derive macros. It runs only at compile time and is not part of
+# the on-chain BPF runtime. osv reports no fixed version (FIXED VERSION: --), so this
+# can only be filtered until anchor-lang migrates off proc-macro-error2.
+reason = "proc-macro-error2 2.0.1 transitive via anchor-lang derive macros; build-time proc-macro only, not in on-chain BPF runtime; no upstream fix available"
