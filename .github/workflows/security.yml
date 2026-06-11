@@ -33,7 +33,7 @@ jobs:
     # SHA-pinned per org policy (mutable @main is rejected by zizmor
     # unpinned-uses). Trailing comment keeps Dependabot updates working;
     # matches the convention in ci.yml.
-    uses: resq-software/.github/.github/workflows/security-scan.yml@b48036af2c8f012f547979c29c819e1a19caf406 # main (2026-06-01, #21)
+    uses: resq-software/.github/.github/workflows/security-scan.yml@73b9edb8f4f28a99f70ee22eb5e2dd2bf7807c84 # main (2026-06-01, #21)
     with:
       languages: '["actions"]'
       enable-semgrep: true
