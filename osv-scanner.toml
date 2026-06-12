@@ -29,6 +29,14 @@ id = "RUSTSEC-2025-0161"
 # libsecp256k1 0.6.0 is effectively frozen; Solana pins this version.
 reason = "libsecp256k1 0.6.0 transitive via solana-* crates; fix requires upstream Solana bump"
 
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0173"
+# proc-macro-error2 2.0.1 is unmaintained (author archived the crate). It is a
+# build-time-only proc-macro pulled transitively via aquamarine (doc diagrams)
+# -> solana-runtime -> solana-program-test, which is a dev-dependency. No fixed
+# version exists; the advisory recommends migrating away, which is upstream work.
+reason = "proc-macro-error2 2.0.1 unmaintained; build-time dev-dep via aquamarine -> solana-runtime -> solana-program-test; no fix available, await upstream Solana migration"
+
 # ── Old dalek / rand pins (transitive via Solana; on-chain BPF unaffected) ───
 
 [[IgnoredVulns]]
