@@ -61,6 +61,40 @@ id = "RUSTSEC-2026-0097"
 # custom loggers with rand; the 0.8.x and 0.9.x pins are already on fixed versions.
 reason = "rand 0.7.3 transitive via solana-* deps; fixed versions (0.8.6, 0.9.3) already pinned for first-order users; no custom-logger code paths"
 
+# ── 2026-07 host-side test-harness advisories (fixed upstream, await bump) ──
+# All four arrive only through the vendored solana-program-test dev-dependency
+# chain (solana-runtime / banks-server / client) and are never executed by the
+# on-chain BPF programs. Revisit on any Solana / Anchor major bump.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0186"
+# memmap2 0.5.10/0.9.10 do not validate the offset/len of advise_/flush_ ranges,
+# causing UB via unchecked pointer arithmetic. Pinned transitively via
+# solana-runtime -> agave-snapshots / solana-accounts-db (test harness only).
+# Fixed upstream in 0.9.11; requires an upstream Solana (agave) bump to resolve.
+reason = "memmap2 0.5.10/0.9.10 transitive via solana-runtime/agave-snapshots (test harness only); on-chain BPF unaffected; fixed in 0.9.11, await upstream Solana bump"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0190"
+# anyhow 1.0.102 has an unsoundness in Error::downcast_mut() when context was
+# added. Pulled transitively via anchor-lang's derive macros; programs never call
+# Error::downcast_mut. Fixed upstream in 1.0.103.
+reason = "anyhow 1.0.102 transitive via anchor-lang macros; on-chain BPF never calls downcast_mut; fixed upstream in 1.0.103, await transitive resolution"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0204"
+# crossbeam-epoch 0.9.18's fmt::Display impl dereferences an invalid pointer.
+# Transitive via crossbeam-deque -> rayon -> dashmap -> solana-streamer
+# (host-side test infra only). Fixed upstream in 0.9.20.
+reason = "crossbeam-epoch 0.9.18 transitive via rayon/solana-streamer (host-side test infra only); on-chain BPF unaffected; fixed upstream in 0.9.20"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0221"
+# event-listener 5.4.1 unsoundly implements Send/Sync for StackSlot, letting a
+# !Send tag cross thread boundaries. Transitive via async-lock -> solana-client
+# (test harness only). Fixed upstream in 5.4.2.
+reason = "event-listener 5.4.1 transitive via async-lock -> solana-client (host-side test infra only); on-chain BPF unaffected; fixed upstream in 5.4.2"
+
 # The vendored solana-program-test crate is a [patch.crates-io] path
 # dependency: Cargo resolves it through THIS root Cargo.lock, never the
 # nested vendor/solana-program-test/Cargo.lock. That nested lockfile was
@@ -68,11 +102,3 @@ reason = "rand 0.7.3 transitive via solana-* deps; fixed versions (0.8.6, 0.9.3)
 # separate project and report false positives — so it (and its companion
 # osv-scanner.toml) were removed, matching the sibling vendored crates
 # vendor/solana-invoke and vendor/solana-keypair, which ship no lockfile.
-
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0173"
-# proc-macro-error2 2.0.1 is a build-time proc-macro helper pulled in transitively
-# via anchor-lang's derive macros. It runs only at compile time and is not part of
-# the on-chain BPF runtime. osv reports no fixed version (FIXED VERSION: --), so this
-# can only be filtered until anchor-lang migrates off proc-macro-error2.
-reason = "proc-macro-error2 2.0.1 transitive via anchor-lang derive macros; build-time proc-macro only, not in on-chain BPF runtime; no upstream fix available"
