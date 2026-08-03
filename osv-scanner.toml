@@ -69,15 +69,25 @@ reason = "rand 0.7.3 transitive via solana-* deps; fixed versions (0.8.6, 0.9.3)
 # osv-scanner.toml) were removed, matching the sibling vendored crates
 # vendor/solana-invoke and vendor/solana-keypair, which ship no lockfile.
 
-[[IgnoredVulns]]
-id = "RUSTSEC-2026-0186"
-# memmap2 0.5.10, reached only through the vendored solana-program-test
-# dev-dependency: solana-genesis-config 3.0.0 -> agave-snapshots ->
-# solana-runtime -> solana-banks-server -> solana-program-test. That chain
-# pins the 0.5.x line, so `cargo update` cannot lift it to 0.9.11 without an
-# upstream Solana bump.
+# ── Version-scoped package exceptions ───────────────────────────────────────
 #
-# The first-order path is NOT ignored — memmap2 0.9.10 was updated to the
-# fixed 0.9.11 in this same change. This entry exists solely to cover the
-# dev-dep-only 0.5.x pin. Drop it as soon as Solana moves off memmap2 0.5.
-reason = "memmap2 0.5.10 transitive via vendored solana-program-test (dev-dep only); 0.9.x path already updated to the fixed 0.9.11; 0.5.x pin requires upstream Solana bump"
+# Prefer PackageOverrides over IgnoredVulns when only ONE version of a package
+# is unfixable. IgnoredVulns matches by advisory ID alone, so it would suppress
+# the advisory across the whole scan — including a future regression on a
+# non-dev path. This form pins the exception to the exact version.
+
+[[PackageOverrides]]
+name = "memmap2"
+version = "0.5.10"
+ecosystem = "crates.io"
+ignore = true
+# Reached only through the vendored solana-program-test dev-dependency:
+# solana-genesis-config 3.0.0 -> agave-snapshots -> solana-runtime ->
+# solana-banks-server -> solana-program-test. That chain pins the 0.5.x line,
+# so `cargo update` cannot lift it to 0.9.11 without an upstream Solana bump.
+#
+# The first-order path is NOT excepted — memmap2 0.9.10 was updated to the
+# fixed 0.9.11 in this same change, and because this override is version-scoped
+# RUSTSEC-2026-0186 still fires on any other memmap2 version. Drop this block
+# as soon as Solana moves off memmap2 0.5.
+reason = "memmap2 0.5.10 only, transitive via vendored solana-program-test (dev-dep); 0.9.x path already updated to the fixed 0.9.11; 0.5.x pin requires upstream Solana bump"
