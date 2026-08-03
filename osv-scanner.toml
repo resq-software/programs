@@ -70,9 +70,14 @@ reason = "rand 0.7.3 transitive via solana-* deps; fixed versions (0.8.6, 0.9.3)
 # vendor/solana-invoke and vendor/solana-keypair, which ship no lockfile.
 
 [[IgnoredVulns]]
-id = "RUSTSEC-2026-0173"
-# proc-macro-error2 2.0.1 is a build-time proc-macro helper pulled in transitively
-# via anchor-lang's derive macros. It runs only at compile time and is not part of
-# the on-chain BPF runtime. osv reports no fixed version (FIXED VERSION: --), so this
-# can only be filtered until anchor-lang migrates off proc-macro-error2.
-reason = "proc-macro-error2 2.0.1 transitive via anchor-lang derive macros; build-time proc-macro only, not in on-chain BPF runtime; no upstream fix available"
+id = "RUSTSEC-2026-0186"
+# memmap2 0.5.10, reached only through the vendored solana-program-test
+# dev-dependency: solana-genesis-config 3.0.0 -> agave-snapshots ->
+# solana-runtime -> solana-banks-server -> solana-program-test. That chain
+# pins the 0.5.x line, so `cargo update` cannot lift it to 0.9.11 without an
+# upstream Solana bump.
+#
+# The first-order path is NOT ignored — memmap2 0.9.10 was updated to the
+# fixed 0.9.11 in this same change. This entry exists solely to cover the
+# dev-dep-only 0.5.x pin. Drop it as soon as Solana moves off memmap2 0.5.
+reason = "memmap2 0.5.10 transitive via vendored solana-program-test (dev-dep only); 0.9.x path already updated to the fixed 0.9.11; 0.5.x pin requires upstream Solana bump"
