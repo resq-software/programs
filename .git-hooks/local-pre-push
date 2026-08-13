@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+
+# Copyright 2026 ResQ Systems, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Repo-specific pre-push — runs after the canonical ResQ pre-push hook, which
+# execs this file when it exists.
+#
+# The canonical hook is language-agnostic on purpose: it guards branch naming
+# and force-pushes to main, and delegates anything needing a toolchain to here.
+# Rust/Anchor validation therefore lives in this file rather than in the shared
+# template, which is also what `.git-hooks/README.md` promises for `pre-push`.
+#
+# Skip with SKIP_CARGO_CHECK=1 for a push that cannot affect compilation.
+set -euo pipefail
+
+[ "${SKIP_CARGO_CHECK:-0}" = "1" ] && { echo "  Rust: skipped (SKIP_CARGO_CHECK=1)"; exit 0; }
+
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "  Rust: cargo not found, skipping workspace check"
+    exit 0
+fi
+
+REMOTE="${1:-origin}"
+# Compare against the tracking branch when there is one; a brand-new branch has
+# no upstream yet, so fall back to the remote's main.
+REMOTE_BRANCH=$(git rev-parse --abbrev-ref "@{upstream}" 2>/dev/null || echo "$REMOTE/main")
+CHANGED_RS=$(git diff --name-only "$REMOTE_BRANCH"...HEAD -- '*.rs' 'Cargo.toml' 'Cargo.lock' 2>/dev/null || true)
+
+if [ -n "$CHANGED_RS" ]; then
+    echo "  Rust: cargo check --workspace"
+    if ! cargo check --workspace --quiet; then
+        echo "❌ cargo check failed. Fix the errors before pushing."
+        echo "   Override with:  git push --no-verify"
+        exit 1
+    fi
+    echo "✅ Rust workspace OK"
+fi

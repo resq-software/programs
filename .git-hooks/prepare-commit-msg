@@ -10,6 +10,13 @@ set -euo pipefail
 COMMIT_MSG_FILE="${1:-}"
 COMMIT_SOURCE="${2:-}"
 
+# Same reasoning as commit-msg: the `${1:-}` default otherwise reaches `cat ""`,
+# and `set -e` reports the tool's error rather than the hook's.
+if [ -z "$COMMIT_MSG_FILE" ] || [ ! -f "$COMMIT_MSG_FILE" ]; then
+    echo "❌ prepare-commit-msg: expected a commit-message file as \$1, got '$COMMIT_MSG_FILE'." >&2
+    exit 1
+fi
+
 case "$COMMIT_SOURCE" in
     merge|squash|message|commit) exit 0 ;;
 esac
