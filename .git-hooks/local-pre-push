@@ -32,16 +32,52 @@ if ! command -v cargo >/dev/null 2>&1; then
     exit 0
 fi
 
-REMOTE="${1:-origin}"
-# Compare against the tracking branch when there is one; a brand-new branch has
-# no upstream yet, so fall back to the remote's main.
-REMOTE_BRANCH=$(git rev-parse --abbrev-ref "@{upstream}" 2>/dev/null || echo "$REMOTE/main")
-CHANGED_RS=$(git diff --name-only "$REMOTE_BRANCH"...HEAD -- '*.rs' 'Cargo.toml' 'Cargo.lock' 2>/dev/null || true)
+ZERO_SHA="0000000000000000000000000000000000000000"
+HEAD_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
 
-if [ -n "$CHANGED_RS" ]; then
-    echo "  Rust: cargo check --workspace"
-    if ! cargo check --workspace --quiet; then
-        echo "❌ cargo check failed. Fix the errors before pushing."
+# The canonical hook forwards git's ref records, so read them rather than
+# assuming the push is of the checked-out branch: `git push origin feat/rust`
+# from elsewhere, or `git push --all`, sends refs this hook would never see by
+# looking at HEAD alone.
+#
+# Clippy compiles the *working tree*, so it can only ever speak for what is
+# checked out. Rather than pretend otherwise, scope conservatively: lint
+# whenever a pushed ref is something other than HEAD, and use the cheap
+# file-diff skip only when the push is exactly the branch in hand.
+run_check=0
+scoped=1
+if [ ! -t 0 ]; then
+    while read -r _local_ref local_sha _remote_ref _remote_sha; do
+        [ -z "$local_sha" ] && continue
+        [ "$local_sha" = "$ZERO_SHA" ] && continue   # deletion: nothing to compile
+        if [ "$local_sha" != "$HEAD_SHA" ]; then
+            scoped=0
+            run_check=1
+        fi
+    done
+fi
+
+if [ "$scoped" = "1" ]; then
+    REMOTE="${1:-origin}"
+    # Compare against the tracking branch when there is one; a brand-new branch
+    # has no upstream yet, so fall back to the remote's main.
+    REMOTE_BRANCH=$(git rev-parse --abbrev-ref "@{upstream}" 2>/dev/null || echo "$REMOTE/main")
+    if CHANGED_RS=$(git diff --name-only "$REMOTE_BRANCH"...HEAD -- '*.rs' 'Cargo.toml' 'Cargo.lock' 2>/dev/null); then
+        [ -n "$CHANGED_RS" ] && run_check=1
+    else
+        # The range would not resolve — shallow clone, missing upstream. Fail
+        # toward running the check rather than silently skipping it.
+        run_check=1
+    fi
+fi
+
+if [ "$run_check" = "1" ]; then
+    # Clippy, not `cargo check`: AGENTS.md names
+    # `cargo clippy --workspace -- -D warnings` as this repo's lint gate, and
+    # `cargo check` passes happily on the warnings clippy exists to reject.
+    echo "  Rust: cargo clippy --workspace -- -D warnings"
+    if ! cargo clippy --workspace --quiet -- -D warnings; then
+        echo "❌ cargo clippy failed. Fix the warnings before pushing."
         echo "   Override with:  git push --no-verify"
         exit 1
     fi

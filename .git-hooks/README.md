@@ -34,9 +34,10 @@ The setup script sets `core.hooksPath` to `.git-hooks` and makes all hooks execu
 
 These are the canonical ResQ hooks, owned by
 [`resq-software/crates`](https://github.com/resq-software/crates/tree/master/crates/resq-cli/templates/git-hooks)
-and installed by `resq hooks update`. They are deliberately thin: each delegates
-the real work to the `resq` binary or to a repo-owned `local-*` hook, which is
-why editing them here only produces drift.
+and installed by `resq hooks update`. They are canonical shims: each keeps the
+validation and reporting specific to its own hook, hands the heavier checks to
+the `resq` binary where there are any, and then runs an executable repo-owned
+`local-*` override. Editing them here only produces drift.
 
 | Hook | Purpose |
 |------|---------|
