@@ -16,12 +16,15 @@ IS_BRANCH_CHECKOUT="${3:-}"
 if [ "$IS_BRANCH_CHECKOUT" = "1" ] && [ "$PREV_HEAD" != "$NEW_HEAD" ]; then
     CHANGED=$(git diff --name-only "$PREV_HEAD" "$NEW_HEAD" 2>/dev/null || true)
 
-    grep -q "^Cargo\.lock$"   <<<"$CHANGED" && echo "📦 Cargo.lock changed — run: cargo build"
+    # Matched by basename rather than anchored to the repository root: a monorepo
+    # keeps lockfiles in nested workspaces (`libs/dotnet/flake.lock`,
+    # `programs/Cargo.lock`), and a root-anchored pattern ignores them all.
+    grep -qE "(^|/)Cargo\.lock$"  <<<"$CHANGED" && echo "📦 Cargo.lock changed — run: cargo build"
     # `\?` is a GNU BRE extension; BSD grep on macOS reads it as a literal `?`,
     # so the optional-`b` form needs ERE to match on every developer's box.
-    grep -qE "^bun\.lockb?$" <<<"$CHANGED" && echo "📦 bun.lock changed — run: bun install"
-    grep -q "^uv\.lock$"      <<<"$CHANGED" && echo "📦 uv.lock changed — run: uv sync"
-    grep -q "^flake\.lock$"   <<<"$CHANGED" && echo "📦 flake.lock changed — exit and re-enter: nix develop"
+    grep -qE "(^|/)bun\.lockb?$"  <<<"$CHANGED" && echo "📦 bun.lock changed — run: bun install"
+    grep -qE "(^|/)uv\.lock$"     <<<"$CHANGED" && echo "📦 uv.lock changed — run: uv sync"
+    grep -qE "(^|/)flake\.lock$"  <<<"$CHANGED" && echo "📦 flake.lock changed — exit and re-enter: nix develop"
 fi
 
 LOCAL_HOOK="$(git rev-parse --show-toplevel)/.git-hooks/local-post-checkout"
