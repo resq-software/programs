@@ -13,7 +13,10 @@ set -euo pipefail
 
 echo "🚀 Running pre-push checks..."
 
-BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+# Deliberately no `BRANCH=$(git symbolic-ref HEAD)` here. Every rule below reads
+# the ref being pushed to, and a variable holding the checked-out branch is what
+# both of them used to key on — which is how a force push to main from another
+# branch got waved through. Keeping it around only invites that back.
 
 # Capture stdin (the ref info git passes to pre-push) so both the force-push
 # guard and any local-pre-push hook can read it.
