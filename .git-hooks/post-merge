@@ -12,7 +12,9 @@ set -euo pipefail
 CHANGED=$(git diff-tree -r --name-only --no-commit-id ORIG_HEAD HEAD 2>/dev/null || true)
 
 grep -q "^Cargo\.lock$"   <<<"$CHANGED" && echo "📦 Cargo.lock changed after merge — run: cargo build"
-grep -q "^bun\.lockb\?$"  <<<"$CHANGED" && echo "📦 bun.lock changed after merge — run: bun install"
+# `\?` is a GNU BRE extension; BSD grep on macOS reads it as a literal `?`, so
+# the optional-`b` form needs ERE to match `bun.lock` on every developer's box.
+grep -qE "^bun\.lockb?$" <<<"$CHANGED" && echo "📦 bun.lock changed after merge — run: bun install"
 grep -q "^uv\.lock$"      <<<"$CHANGED" && echo "📦 uv.lock changed after merge — run: uv sync"
 grep -q "^flake\.lock$"   <<<"$CHANGED" && echo "📦 flake.lock changed after merge — exit and re-enter: nix develop"
 
