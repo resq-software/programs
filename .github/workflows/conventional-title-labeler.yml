@@ -42,8 +42,27 @@ jobs:
             refactor)     label="C-Refactor" ;;
             test)         label="C-Testing" ;;
             chore|build|ci|style|revert) label="C-Chore" ;;
-            *) echo "Title has no conventional type prefix; nothing to label."; exit 0 ;;
+            *) label="" ;;
           esac
+          # Converge the title-derived label: on an `edited` re-run the type may have
+          # changed (feat -> fix) or lost its prefix, so a prior C-* would go stale and
+          # mis-categorize the release notes. Remove the previously applied change-type
+          # label before adding the current one. Only the four types below are managed
+          # here because the path labeler (.github/labeler.yml) never applies them;
+          # C-Documentation / C-Testing / C-Chore are co-owned by paths and are left
+          # untouched so this workflow never strips a label the path labeler owns.
+          exclusive="C-Feature C-Bug C-Performance C-Refactor"
+          current="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')"
+          for l in $exclusive; do
+            if [ "$l" != "$label" ] && printf '%s\n' "$current" | grep -qxF "$l"; then
+              gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label "$l" \
+                || echo "::warning::could not remove stale label '$l'."
+            fi
+          done
+          if [ -z "$label" ]; then
+            echo "Title has no conventional type prefix; cleared stale change-type labels, nothing to add."
+            exit 0
+          fi
           echo "Conventional type '$type' -> $label"
           gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "$label" \
             || echo "::warning::label '$label' not found yet (run Label Sync); skipped."

@@ -136,6 +136,43 @@
   color: "f1e05a"
   description: JavaScript and TypeScript dependency updates
 
+# --- Size (size/) --- (applied by .github/workflows/pr-size-labeler.yml) ---
+# pascalgn/size-label-action's default buckets (by total lines changed).
+# Defined here so Label Sync provisions them with stable colors/descriptions
+# instead of the action creating them ad hoc.
+- name: "size/XS"
+  color: "009900"
+  description: "Extra-small PR (fewer than 10 lines changed)"
+
+- name: "size/S"
+  color: "77bb00"
+  description: "Small PR (10-29 lines changed)"
+
+- name: "size/M"
+  color: "eebb00"
+  description: "Medium PR (30-99 lines changed)"
+
+- name: "size/L"
+  color: "ee9900"
+  description: "Large PR (100-499 lines changed)"
+
+- name: "size/XL"
+  color: "ee5500"
+  description: "Extra-large PR (500-999 lines changed)"
+
+- name: "size/XXL"
+  color: "ee0000"
+  description: "Huge PR (1000 or more lines changed)"
+
+# --- Release automation --- (exclude labels read by .github/release.yml) ---
+- name: "ignore-for-release"
+  color: "cfd3d7"
+  description: "Omit this PR from generated release notes"
+
+- name: "skip-changelog"
+  color: "cfd3d7"
+  description: "Omit this PR from the changelog"
+
 # --- Status (S-) ---
 - name: "S-Needs-Triage"
   color: "ededed"
