@@ -13,6 +13,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
 
 permissions:
@@ -48,3 +49,28 @@ jobs:
             success|skipped|"") echo "ok: rust=$RUST_RESULT" ;;
             *) echo "::error::rust reusable returned: $RUST_RESULT"; exit 1 ;;
           esac
+
+  # Publish a GitHub Release per v* tag so resq-software/landing's changelog
+  # aggregator picks the version up — the aggregator ingests GitHub *Releases*,
+  # not git tags. Runs only on a tag push, after the `required` gate passes.
+  release:
+    name: GitHub Release
+    needs: [required]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release
+    steps:
+      - name: Create GitHub Release from the tag
+        # `gh` reads $GH_TOKEN and $GITHUB_REPOSITORY automatically; the tag is
+        # passed via env (never `${{ }}` inside run:) to avoid zizmor template
+        # injection. --generate-notes builds notes from merged PRs since the
+        # previous tag; --verify-tag asserts the ref is a real tag first.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: >
+          gh release create "$TAG"
+          --title "$TAG"
+          --generate-notes
+          --verify-tag
