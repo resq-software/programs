@@ -4,7 +4,10 @@
 # actions/labeler config. Adapted from resq-software/npm's format
 # (label -> changed-files -> any-glob-to-any-file). This is a Cargo/Anchor
 # monorepo whose members are the two on-chain programs; pkg:* labels track
-# each program dir, A-* track cross-cutting areas, C-* track categories.
+# each program dir and A-* track cross-cutting areas. Change-type C-* labels
+# are owned solely by the conventional-title labeler (.github/workflows/
+# conventional-title-labeler.yml); keeping them out of this path config so
+# actions/labeler's sync-labels:true cannot strip a title-applied C-* label.
 
 # ── Program (package) scope labels ──────────────────────────────────────
 
@@ -45,25 +48,3 @@
     - any-glob-to-any-file:
       - scripts/**/*
       - "**/*.sh"
-
-# ── Category labels ─────────────────────────────────────────────────────
-
-"C-Documentation":
-  - changed-files:
-    - any-glob-to-any-file:
-      - "**/*.md"
-      - docs/**/*
-
-"C-Testing":
-  - changed-files:
-    - any-glob-to-any-file:
-      - "**/tests/**/*"
-      - scripts/test.sh
-
-"C-Chore":
-  - changed-files:
-    - any-glob-to-any-file:
-      - package.json
-      - osv-scanner.toml
-      - .gitignore
-      - .gitattributes
