@@ -91,3 +91,50 @@ ignore = true
 # RUSTSEC-2026-0186 still fires on any other memmap2 version. Drop this block
 # as soon as Solana moves off memmap2 0.5.
 reason = "memmap2 0.5.10 only, transitive via vendored solana-program-test (dev-dep); 0.9.x path already updated to the fixed 0.9.11; 0.5.x pin requires upstream Solana bump"
+
+# ── im test-framework family + lru (dev-only via solana-program-test) ─────────
+#
+# im (persistent data structures) and its helper crates bitmaps + sized-chunks,
+# plus lru, are all reached ONLY through the dev-only chain
+#   solana-runtime / solana-tpu-client-next -> solana-send-transaction-service
+#   -> solana-banks-server -> solana-program-test  ([dev-dependencies])
+# `cargo tree -e normal -i solana-runtime` is empty, so none of these are
+# compiled into the on-chain BPF programs — exposure is host-side test only.
+# im/bitmaps/sized-chunks are unmaintained with no fixed releases; lru has a fix
+# (0.18.2) but solana-tpu-client-next pins `lru = "^0.7.7"` so `cargo update -p
+# lru --precise 0.18.2` fails. Version-scoped (per the note above) so a future
+# regression on a non-dev path still fires. Drop each as Solana's test stack
+# moves off im / bumps lru.
+
+[[PackageOverrides]]
+name = "im"
+version = "15.1.0"
+ecosystem = "crates.io"
+ignore = true
+# Covers RUSTSEC-2023-0126 and RUSTSEC-2026-0248.
+reason = "im 15.1.0 only, unmaintained (no fixed release); dev-only via solana-program-test; never in on-chain BPF; await upstream Solana migration off im"
+
+[[PackageOverrides]]
+name = "bitmaps"
+version = "2.1.0"
+ecosystem = "crates.io"
+ignore = true
+# Helper crate of im. Covers RUSTSEC-2026-0247.
+reason = "bitmaps 2.1.0 only, unmaintained (no fixed release); transitive via im (dev-only, solana-program-test); never in on-chain BPF"
+
+[[PackageOverrides]]
+name = "sized-chunks"
+version = "0.6.5"
+ecosystem = "crates.io"
+ignore = true
+# Helper crate of im. Covers RUSTSEC-2026-0251 and RUSTSEC-2026-0255.
+reason = "sized-chunks 0.6.5 only, unmaintained (no fixed release); transitive via im (dev-only, solana-program-test); never in on-chain BPF"
+
+[[PackageOverrides]]
+name = "lru"
+version = "0.7.8"
+ecosystem = "crates.io"
+ignore = true
+# Covers RUSTSEC-2026-0253. Fix (0.18.2) blocked by solana-tpu-client-next's
+# `lru = "^0.7.7"` pin.
+reason = "lru 0.7.8 only: fixed in 0.18.2 but solana-tpu-client-next pins ^0.7.7 (semver-incompatible); dev-only via solana-program-test; never in on-chain BPF; await upstream Solana bump"
