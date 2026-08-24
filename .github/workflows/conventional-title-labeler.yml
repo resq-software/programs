@@ -1,0 +1,68 @@
+# Copyright 2026 ResQ Systems, Inc.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Applies the org C-* change-type label (C-Feature / C-Bug / ...) to a PR based
+# on its conventional-commit title prefix. Combined with .github/release.yml,
+# this makes `gh release create --generate-notes` group PRs by type, which flows
+# into resq-software/landing's changelog aggregator so its feature/fix/kind
+# classification is automatic rather than a default guess. Path labels come from
+# .github/labeler.yml; this covers the change *type* that paths cannot express.
+name: Conventional Title Labeler
+
+on:
+  pull_request_target: # zizmor: ignore[dangerous-triggers] -- needs write access; guarded by same-repo check
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  label:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+    runs-on: ubuntu-latest
+    steps:
+      - name: Map conventional title prefix to a C-* label
+        # TITLE is read from env (never interpolated into the script) to avoid
+        # zizmor template-injection. The type is the leading token before an
+        # optional scope and colon, e.g. `feat(ui)!: ...` -> `feat`.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          type="$(printf '%s' "$TITLE" | sed -nE 's/^([a-zA-Z]+)(\([^)]*\))?!?:.*/\1/p' | tr '[:upper:]' '[:lower:]')"
+          case "$type" in
+            feat|feature) label="C-Feature" ;;
+            fix)          label="C-Bug" ;;
+            perf)         label="C-Performance" ;;
+            docs)         label="C-Documentation" ;;
+            refactor)     label="C-Refactor" ;;
+            test)         label="C-Testing" ;;
+            chore|build|ci|style|revert) label="C-Chore" ;;
+            *) label="" ;;
+          esac
+          # Converge the title-derived label: on an `edited` re-run the type may have
+          # changed (feat -> fix) or lost its prefix, so a prior C-* would go stale and
+          # mis-categorize the release notes. This workflow is the SOLE owner of the
+          # change-type C-* labels below (the path labeler in .github/labeler.yml owns
+          # only A-* / pkg:* area labels), so it can safely remove the previously
+          # applied change-type label before adding the current one without racing
+          # actions/labeler's sync-labels:true.
+          exclusive="C-Feature C-Bug C-Performance C-Documentation C-Refactor C-Testing C-Chore"
+          current="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')"
+          for l in $exclusive; do
+            if [ "$l" != "$label" ] && printf '%s\n' "$current" | grep -qxF "$l"; then
+              gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --remove-label "$l" \
+                || echo "::warning::could not remove stale label '$l'."
+            fi
+          done
+          if [ -z "$label" ]; then
+            echo "Title has no conventional type prefix; cleared stale change-type labels, nothing to add."
+            exit 0
+          fi
+          echo "Conventional type '$type' -> $label"
+          gh pr edit "$PR" --repo "$GITHUB_REPOSITORY" --add-label "$label" \
+            || echo "::warning::label '$label' not found yet (run Label Sync); skipped."

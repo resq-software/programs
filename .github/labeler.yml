@@ -1,0 +1,50 @@
+# Copyright 2026 ResQ Software
+# SPDX-License-Identifier: Apache-2.0
+#
+# actions/labeler config. Adapted from resq-software/npm's format
+# (label -> changed-files -> any-glob-to-any-file). This is a Cargo/Anchor
+# monorepo whose members are the two on-chain programs; pkg:* labels track
+# each program dir and A-* track cross-cutting areas. Change-type C-* labels
+# are owned solely by the conventional-title labeler (.github/workflows/
+# conventional-title-labeler.yml); keeping them out of this path config so
+# actions/labeler's sync-labels:true cannot strip a title-applied C-* label.
+
+# ── Program (package) scope labels ──────────────────────────────────────
+
+"pkg:delivery":
+  - changed-files:
+    - any-glob-to-any-file: resq-delivery/**/*
+
+"pkg:airspace":
+  - changed-files:
+    - any-glob-to-any-file: resq-airspace/**/*
+
+# ── Area labels ─────────────────────────────────────────────────────────
+
+"A-DevOps":
+  - changed-files:
+    - any-glob-to-any-file:
+      - .github/workflows/**/*
+      - .github/actions/**/*
+      - .git-hooks/**/*
+
+"A-Build":
+  - changed-files:
+    - any-glob-to-any-file:
+      - Cargo.toml
+      - Cargo.lock
+      - Anchor.toml
+      - "**/Cargo.toml"
+      - Dockerfile
+      - flake.nix
+      - bootstrap.sh
+
+"A-Vendor":
+  - changed-files:
+    - any-glob-to-any-file: vendor/**/*
+
+"A-Scripts":
+  - changed-files:
+    - any-glob-to-any-file:
+      - scripts/**/*
+      - "**/*.sh"
