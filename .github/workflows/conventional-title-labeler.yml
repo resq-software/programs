@@ -46,12 +46,12 @@ jobs:
           esac
           # Converge the title-derived label: on an `edited` re-run the type may have
           # changed (feat -> fix) or lost its prefix, so a prior C-* would go stale and
-          # mis-categorize the release notes. Remove the previously applied change-type
-          # label before adding the current one. Only the four types below are managed
-          # here because the path labeler (.github/labeler.yml) never applies them;
-          # C-Documentation / C-Testing / C-Chore are co-owned by paths and are left
-          # untouched so this workflow never strips a label the path labeler owns.
-          exclusive="C-Feature C-Bug C-Performance C-Refactor"
+          # mis-categorize the release notes. This workflow is the SOLE owner of the
+          # change-type C-* labels below (the path labeler in .github/labeler.yml owns
+          # only A-* / pkg:* area labels), so it can safely remove the previously
+          # applied change-type label before adding the current one without racing
+          # actions/labeler's sync-labels:true.
+          exclusive="C-Feature C-Bug C-Performance C-Documentation C-Refactor C-Testing C-Chore"
           current="$(gh pr view "$PR" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')"
           for l in $exclusive; do
             if [ "$l" != "$label" ] && printf '%s\n' "$current" | grep -qxF "$l"; then
