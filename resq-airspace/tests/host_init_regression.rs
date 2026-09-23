@@ -1,9 +1,3 @@
-#![allow(
-    clippy::needless_pass_by_value,
-    unused_imports,
-    unused_mut,
-    clippy::missing_transmute_annotations
-)]
 /*
  * Copyright 2026 ResQ
  *
@@ -43,8 +37,12 @@ fn process_instruction(
     data: &[u8],
 ) -> ProgramResult {
     let program_id = anchor_pubkey(*program_id);
-    resq_airspace::entry(&program_id, unsafe { std::mem::transmute(accounts) }, data)
-        .map_err(|err| ProgramError::from(u64::from(err)))
+    resq_airspace::entry(
+        &program_id,
+        unsafe { std::mem::transmute::<&[AccountInfo], &[AccountInfo]>(accounts) },
+        data,
+    )
+    .map_err(|err| ProgramError::from(u64::from(err)))
 }
 
 fn property_id_bytes(value: &str) -> [u8; 32] {

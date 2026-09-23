@@ -1,11 +1,3 @@
-#![allow(
-    clippy::needless_pass_by_value,
-    clippy::needless_borrow,
-    clippy::too_many_arguments,
-    clippy::missing_transmute_annotations,
-    unused_imports,
-    unused_mut
-)]
 /*
  * Copyright 2026 ResQ
  *
@@ -25,17 +17,12 @@
 use anchor_lang::{AccountDeserialize, InstructionData, ToAccountMetas};
 use solana_account_info::AccountInfo;
 use solana_instruction::{AccountMeta, Instruction as SolanaInstruction};
-use solana_keypair::Keypair as SolanaKeypair;
 use solana_program_entrypoint::ProgramResult;
 use solana_program_test::*;
 use solana_program_test::{processor, ProgramTest};
 use solana_pubkey::Pubkey as SolanaPubkey;
 use solana_sdk::program_error::ProgramError;
-use solana_sdk::{
-    instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer,
-    sysvar::clock::Clock, transaction::Transaction,
-};
-use solana_signer::Signer as SolanaSigner;
+use solana_sdk::{signature::Keypair, signer::Signer, sysvar::clock::Clock};
 use solana_system_interface::instruction as system_instruction;
 use solana_transaction::Transaction as SolanaTransaction;
 
@@ -49,8 +36,12 @@ fn process_instruction(
     data: &[u8],
 ) -> ProgramResult {
     let program_id = anchor_pubkey(*program_id);
-    resq_airspace::entry(&program_id, unsafe { std::mem::transmute(accounts) }, data)
-        .map_err(|err| ProgramError::from(u64::from(err)))
+    resq_airspace::entry(
+        &program_id,
+        unsafe { std::mem::transmute::<&[AccountInfo], &[AccountInfo]>(accounts) },
+        data,
+    )
+    .map_err(|err| ProgramError::from(u64::from(err)))
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -101,6 +92,9 @@ fn permit_pda(airspace: &SolanaPubkey, drone: &SolanaPubkey) -> (SolanaPubkey, u
 
 const UNIT_POLY: [[i64; 2]; 8] = [[0, 0]; 8];
 
+// Mirrors the on-chain handler's parameter list one-for-one; splitting into
+// a struct would obscure the 1:1 mapping this test helper exists to verify.
+#[allow(clippy::too_many_arguments)]
 async fn initialize_property_ix(
     owner: &SolanaPubkey,
     airspace_pda: &SolanaPubkey,

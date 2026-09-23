@@ -18,6 +18,7 @@ use anchor_lang::prelude::*;
 
 /// Access policy for an airspace envelope.
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[borsh(use_discriminant = true)]
 pub enum AccessPolicy {
     /// Any drone may transit without a permit or fee.
     #[default]

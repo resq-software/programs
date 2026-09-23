@@ -1,8 +1,10 @@
-#![allow(
-    unexpected_cfgs,
-    clippy::too_many_arguments,
-    clippy::diverging_sub_expression
-)]
+#![allow(unexpected_cfgs)]
+// The `#[program]` macro also generates a `cpi` module with a same-arity
+// helper per instruction; clippy attributes `too_many_arguments` for those
+// back to the `#[program]` attribute site itself, outside the lexical scope
+// of the per-handler `#[allow(clippy::too_many_arguments)]` already applied
+// below. Allow crate-wide since this is macro-generated, not authored code.
+#![allow(clippy::too_many_arguments)]
 
 /*
  * Copyright 2026 ResQ
@@ -36,6 +38,7 @@ pub mod resq_airspace {
     use super::*;
 
     /// Create and initialise a new `AirspaceAccount` for a property.
+    #[allow(clippy::too_many_arguments)]
     pub fn initialize_property(
         ctx: Context<InitializeProperty>,
         property_id: [u8; 32],

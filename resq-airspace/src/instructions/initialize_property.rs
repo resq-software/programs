@@ -52,6 +52,9 @@ pub struct InitializeProperty<'info> {
 /// * `policy`        – `AccessPolicy` enum value
 /// * `fee_lamports`  – per-crossing fee (0 = free)
 /// * `treasury`      – SOL account that receives crossing fees
+// Anchor instruction handlers take one parameter per on-chain field by
+// design; splitting into a struct would change the generated IDL/client
+// call-site shape. This is idiomatic for Anchor programs.
 #[allow(clippy::too_many_arguments)]
 pub fn handler(
     ctx: Context<InitializeProperty>,
