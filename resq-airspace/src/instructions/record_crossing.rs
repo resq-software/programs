@@ -116,7 +116,7 @@ pub fn handler(
     let mut fee_paid: u64 = 0;
 
     match airspace.policy {
-        AccessPolicy::Open => {}, // no permit, no fee
+        AccessPolicy::Open => {} // no permit, no fee
         AccessPolicy::Permit | AccessPolicy::Auction => {
             let permit = ctx
                 .accounts
@@ -147,7 +147,7 @@ pub fn handler(
                 )?;
                 fee_paid = airspace.fee_lamports;
             }
-        },
+        }
         // Deny was already handled above.
         AccessPolicy::Deny => unreachable!(),
     }
