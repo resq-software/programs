@@ -52,7 +52,6 @@ pub struct InitializeProperty<'info> {
 /// * `policy`        – `AccessPolicy` enum value
 /// * `fee_lamports`  – per-crossing fee (0 = free)
 /// * `treasury`      – SOL account that receives crossing fees
-#[allow(clippy::too_many_arguments)]
 pub fn handler(
     ctx: Context<InitializeProperty>,
     property_id: [u8; 32],
@@ -67,13 +66,10 @@ pub fn handler(
     require!(property_id != [0u8; 32], AirspaceError::EmptyPropertyId);
     require!(min_alt_m < max_alt_m, AirspaceError::InvalidAltitudeBounds);
     require!(
-        (1..=8).contains(&vertex_count),
+        vertex_count >= 1 && vertex_count <= 8,
         AirspaceError::InvalidVertexCount
     );
-    require!(
-        treasury != Pubkey::default(),
-        AirspaceError::InvalidTreasury
-    );
+    require!(treasury != Pubkey::default(), AirspaceError::InvalidTreasury);
 
     let airspace_pda = ctx.accounts.airspace.key();
     let owner_key = ctx.accounts.owner.key();

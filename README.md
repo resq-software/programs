@@ -216,7 +216,6 @@ Configuration for local development and deployments is managed in `Anchor.toml`.
 
 *   **`[programs.localnet]` / `[programs.devnet]`**: Defines custom Program IDs for each cluster. Ensure these match the `declare_id!("...")` macro in your Rust code.
 *   **`[provider]`**: Configures the default cluster URL and wallet keypair for Anchor commands.
-*   **`[scripts]`**: Defines the `anchor test` entrypoint (`bash ./scripts/test.sh`).
 *   **Environment Overrides**:
     *   `SOLANA_VERSION`: Ensure the `solana-cli` version matches dependencies.
     *   `ANCHOR_VERSION`: Managed by `avm` (via Nix).
@@ -243,6 +242,15 @@ Configuration for local development and deployments is managed in `Anchor.toml`.
 *   **`record_delivery`**: Creates an immutable `DeliveryRecord` PDA. This serves as proof-of-delivery, storing an IPFS CID of evidence and delivery coordinates.
     *   **Arguments**: `ipfs_cid`, `lat`, `lon`, `alt_m`, `delivered_at`.
     *   **Accounts**: `drone` (mut), `airspace` (account info), `delivery_record` (init), `system_program`.
+
+## Configuration
+
+Configuration is primarily handled via `Anchor.toml` and environment variables.
+
+*   **`Anchor.toml`**: Specifies program IDs for different clusters (`localnet`, `devnet`), default provider settings (cluster URL, wallet), and script commands.
+*   **Environment Variables**:
+    *   `SOLANA_CLI_VERSION`: Not directly used, but `bootstrap.sh` and `flake.nix` pin specific versions.
+    *   `ANCHOR_VERSION`: Managed by `avm` for cross-version compatibility.
 
 ## Development
 
@@ -285,7 +293,7 @@ When the AI is invoked (e.g., through an integrated chat interface or specific c
     *   **Economic Audits**: Specific focus on incentive alignment and potential economic attack vectors.
     *   **Access Control**: Strict adherence to owner-only mutations, PDA authority checks, and role-based permissions.
 
-## Testing and Validation
+## Development
 
 ### Repository Validation
 

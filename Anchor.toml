@@ -19,10 +19,12 @@ skip-lint = false
 [programs.localnet]
 resq_delivery = "DeL1v3ry111111111111111111111111111111111111"
 resq_airspace = "A1rSpAcE1111111111111111111111111111111111111"
+resq_gating = "GaT1ngA1rSpAcE111111111111111111111111111111"
 
 [programs.devnet]
 resq_delivery = "DeL1v3ry111111111111111111111111111111111111"
 resq_airspace = "A1rSpAcE1111111111111111111111111111111111111"
+resq_gating = "GaT1ngA1rSpAcE111111111111111111111111111111"
 
 [registry]
 url = "https://api.apr.dev"
