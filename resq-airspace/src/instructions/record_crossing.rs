@@ -62,8 +62,8 @@ pub struct RecordCrossing<'info> {
 /// - `Deny`    – always rejected.
 ///
 /// # Arguments
-/// * `lat`        – latitude × 1e7 (range -900_000_000 to +900_000_000)
-/// * `lon`        – longitude × 1e7 (range -1_800_000_000 to +1_800_000_000)
+/// * `lat`        – latitude × 1e7 (range −900_000_000 to +900_000_000)
+/// * `lon`        – longitude × 1e7 (range −1_800_000_000 to +1_800_000_000)
 /// * `alt_m`      – altitude in metres (enforced against airspace altitude bounds)
 /// * `crossed_at` – Unix timestamp (seconds) of the crossing; must be within the
 ///   5-minute look-back window and no more than 60 seconds ahead
