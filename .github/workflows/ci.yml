@@ -74,20 +74,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Create GitHub Release from the tag
-        # `gh` reads $GH_TOKEN and $GITHUB_REPOSITORY automatically; the tag is
-        # passed via env (never `${{ }}` inside run:) to avoid zizmor template
-        # injection. --generate-notes builds notes from merged PRs since the
-        # previous tag; --verify-tag asserts the ref is a real tag first.
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: >
-          gh release create "$TAG"
-          --title "$TAG"
-          --generate-notes
-          --verify-tag
-
+      # The assets are generated and attested before the Release exists, so a
+      # failure here publishes nothing.
+      #
       # Generated before the archive exists, so it describes the checkout only.
       - name: Generate SBOM (SPDX JSON)
         uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
@@ -112,8 +101,27 @@ jobs:
             programs-*-source.tar.gz
             sbom.spdx.json
 
+      - name: Create GitHub Release from the tag
+        # `gh` reads $GH_TOKEN and $GITHUB_REPOSITORY automatically; the tag is
+        # passed via env (never `${{ }}` inside run:) to avoid zizmor template
+        # injection. --generate-notes builds notes from merged PRs since the
+        # previous tag; --verify-tag asserts the ref is a real tag first.
+        # Skipped when the Release already exists, so a re-run after a failed
+        # upload below can finish the job instead of failing here.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -eu
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "release $TAG already exists; attaching assets only"
+          else
+            gh release create "$TAG" --title "$TAG" --generate-notes --verify-tag
+          fi
+
       - name: Attach the source archive and SBOM to the Release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
+        # --clobber keeps a re-run idempotent.
         run: gh release upload "$TAG" "programs-$TAG-source.tar.gz" sbom.spdx.json --clobber
