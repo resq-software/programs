@@ -4,3 +4,6 @@ node_modules/
 test-ledger/
 *.so
 .DS_Store
+
+# Local agent/tool settings; never tracked.
+.claude/settings.local.json
