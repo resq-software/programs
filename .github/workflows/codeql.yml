@@ -1,0 +1,85 @@
+# Copyright 2026 ResQ Software
+# SPDX-License-Identifier: Apache-2.0
+#
+# CodeQL coverage for this repository's Rust sources.
+#
+# Why this file exists, and why it is separate from security.yml:
+#
+#   * security.yml calls the org reusable security-scan with
+#     `languages: '["actions"]'`, so CodeQL analysed only the workflow files
+#     under .github/. The on-chain Rust in resq-airspace/, resq-delivery/ and
+#     resq-gating/ had no CodeQL coverage at all.
+#   * GitHub code-scanning *default setup* is `not-configured` on this
+#     repository, so nothing was covering Rust implicitly either.
+#   * The reusable revision that security.yml pins carries
+#     `continue-on-error: true` on its CodeQL analyse step (it tolerates a
+#     default-setup collision on other repos). Routing Rust through that
+#     caller would let a genuine Rust extraction failure pass as green and
+#     leave this repository looking scanned when it was not — so Rust gets a
+#     caller of its own, with failures left visible.
+#
+# This mirrors the equivalent workflow in the `crates` repository, which has
+# been uploading `/language:rust` analyses successfully.
+
+name: CodeQL (Rust)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "*.md"
+  schedule:
+    - cron: "41 6 * * 1" # Weekly, Monday 06:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  # Supersede in-flight runs for a pull request, but never cancel a run on
+  # main: every commit on the default branch needs its own analysis, or a
+  # burst of merges leaves a chain of commits whose SARIF was never uploaded.
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  codeql:
+    name: CodeQL Analysis (rust)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      security-events: write # upload the CodeQL SARIF
+      # Required by github/codeql-action: init and analyze each call
+      # GET /repos/{owner}/{repo}/actions/runs/{run_id}. Read-only; without
+      # it every step ends in "Resource not accessible by integration".
+      actions: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Nothing in this job pushes, so no credential is kept on disk.
+          persist-credentials: false
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          # `rust` is the CodeQL language identifier; unlike c-cpp or
+          # javascript-typescript it has no alias form.
+          languages: rust
+          queries: security-and-quality
+
+      # The Rust extractor resolves cargo manifests rather than running a full
+      # `cargo build`, and this workspace's `[patch.crates-io]` entries point
+      # at in-tree vendor/ paths, so no extra toolchain setup is required.
+      - name: Autobuild
+        uses: github/codeql-action/autobuild@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          category: "/language:rust"
