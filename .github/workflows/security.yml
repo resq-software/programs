@@ -37,12 +37,14 @@ jobs:
     # startup-fails for Dependabot's restricted context, which blocks Dependabot's own security
     # PRs. Dependabot already vetted the bump; push/schedule still scan the default branch.
     if: ${{ github.actor != 'dependabot[bot]' }}
-    uses: resq-software/.github/.github/workflows/security-scan.yml@73b9edb8f4f28a99f70ee22eb5e2dd2bf7807c84 # main (2026-06-01, #21)
+    uses: resq-software/.github/.github/workflows/security-scan.yml@9b8f49927aa789aef1a99e5afc4c1e2278b2dfc0 # main (2026-06-01, #21)
     with:
+      enable-private-name-guard: true
       languages: '["actions"]'
       enable-semgrep: true
     # Forward only the secret this caller needs by name (semgrep is the only
     # enabled token-consuming scanner) instead of `secrets: inherit`, which
     # hands the reusable ALL of this repo's secrets — zizmor secrets-inherit.
     secrets:
+      PRIVATE_NAME_GUARD_TOKEN: ${{ secrets.PRIVATE_NAME_GUARD_TOKEN }}
       SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
