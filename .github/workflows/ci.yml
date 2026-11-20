@@ -34,20 +34,47 @@ jobs:
       run-deny: false
       run-coverage: false
 
+  # ── Private-name guard ──────────────────────────────────────────────
+  # Called from here and not from security.yml: `needs:` cannot reach across
+  # workflow files, and the org ruleset watches only the `required` context.
+  # A guard that reports into nothing cannot stop a merge, however loudly it
+  # fails.
+  private-name-guard:
+    name: private-name-guard
+    # Dependabot's restricted context resolves Actions secrets to empty, so
+    # the guard cannot authenticate on its pull requests. The aggregate below
+    # tolerates the resulting skip for that actor alone.
+    if: ${{ github.actor != 'dependabot[bot]' }}
+    uses: resq-software/.github/.github/workflows/private-name-guard.yml@03bd2fc8788be394d96edebcaceb3b3735bb2cbc # main
+    secrets:
+      PRIVATE_NAME_GUARD_TOKEN: ${{ secrets.PRIVATE_NAME_GUARD_TOKEN }}
+
   required:
     name: required
     runs-on: ubuntu-latest
-    needs: [rust]
+    needs: [rust, private-name-guard]
     if: always()
     steps:
       - name: Aggregate
         env:
           RUST_RESULT: ${{ needs.rust.result }}
+          GUARD: ${{ needs.private-name-guard.result }}
+          ACTOR: ${{ github.actor }}
         run: |
           set -eu
           case "$RUST_RESULT" in
             success|skipped|"") echo "ok: rust=$RUST_RESULT" ;;
             *) echo "::error::rust reusable returned: $RUST_RESULT"; exit 1 ;;
+          esac
+          # The guard is strict: a SKIPPED guard means no check ran, which is
+          # also the fork case -- a fork cannot reach PRIVATE_NAME_GUARD_TOKEN,
+          # so it fails closed and needs a maintainer to re-run from a branch
+          # here. This aggregate is the only context the org ruleset watches,
+          # so anything tolerated here is tolerated at merge. Dependabot is the
+          # single allowed skip, for the reason given on the job itself.
+          case "$ACTOR:$GUARD" in
+            "dependabot[bot]:skipped"|*":success") echo "ok: private-name-guard=$GUARD" ;;
+            *) echo "::error::private-name-guard returned: $GUARD"; exit 1 ;;
           esac
 
   # Publish a GitHub Release per v* tag so the org's changelog

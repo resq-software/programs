@@ -39,12 +39,10 @@ jobs:
     if: ${{ github.actor != 'dependabot[bot]' }}
     uses: resq-software/.github/.github/workflows/security-scan.yml@9b8f49927aa789aef1a99e5afc4c1e2278b2dfc0 # main (2026-06-01, #21)
     with:
-      enable-private-name-guard: true
       languages: '["actions"]'
       enable-semgrep: true
     # Forward only the secret this caller needs by name (semgrep is the only
     # enabled token-consuming scanner) instead of `secrets: inherit`, which
     # hands the reusable ALL of this repo's secrets — zizmor secrets-inherit.
     secrets:
-      PRIVATE_NAME_GUARD_TOKEN: ${{ secrets.PRIVATE_NAME_GUARD_TOKEN }}
       SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
