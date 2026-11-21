@@ -1,2 +1,11 @@
 # Default owner for everything not matched by a more specific rule.
-*  @WomB0ComB0
+#
+# Two owners, deliberately. GitHub will not let an author approve their own
+# pull request, so a sole owner who is also the only person opening pull
+# requests makes `require_code_owner_review` impossible to satisfy rather than
+# strict: every pull request stays blocked with nothing left to do. The second
+# owner is what makes the rule enforceable instead of deadlocked.
+#
+# Multiple owners for one pattern must share a single line; consecutive lines
+# do not stack, the last matching line wins.
+*  @WomB0ComB0 @resq-sw

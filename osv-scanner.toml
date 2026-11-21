@@ -138,3 +138,60 @@ ignore = true
 # Covers RUSTSEC-2026-0253. Fix (0.18.2) blocked by solana-tpu-client-next's
 # `lru = "^0.7.7"` pin.
 reason = "lru 0.7.8 only: fixed in 0.18.2 but solana-tpu-client-next pins ^0.7.7 (semver-incompatible); dev-only via solana-program-test; never in on-chain BPF; await upstream Solana bump"
+
+# ── Remaining advisories with no reachable fix ───────────────────────────────
+#
+# Everything else osv-scanner reported was lifted to a fixed version by
+# `cargo update` instead of being excepted here. These four are what is left.
+# Each is version-scoped for the reason given above: an IgnoredVulns entry
+# matches by advisory ID alone and would suppress a future regression on a
+# version that nobody has assessed.
+
+[[PackageOverrides]]
+name = "chrono"
+version = "0.4.44"
+ecosystem = "crates.io"
+ignore = true
+# RUSTSEC-2026-0543. The advisory is maintenance status, not a defect, and it
+# names no fixed version -- "all versions are affected". The only resolutions
+# are an upstream move to jiff or time, or accepting it. Reached two ways,
+# both behind the vendored solana-program-test dev-dependency:
+#   chrono-humanize -> solana-program-test        [dev-dependencies]
+#   solana-genesis-config -> agave-snapshots / solana-accounts-db
+# Never in an on-chain BPF build. Drop this block when Solana moves off chrono.
+reason = "chrono 0.4.44 only, unmaintained with no fixed release; dev-only via vendored solana-program-test; never in on-chain BPF"
+
+[[PackageOverrides]]
+name = "crypto-bigint"
+version = "0.5.5"
+ecosystem = "crates.io"
+ignore = true
+# RUSTSEC-2026-0387 -- secret-dependent branches in operations meant to be
+# constant-time. Fixed in 0.7.6, two semver-major releases away:
+# elliptic-curve 0.13.8 requires `^0.5`, so `cargo update` cannot reach the fix
+# until ecdsa, k256 and elliptic-curve all move. Version-scoped, so the
+# advisory still fires on any crypto-bigint that is not 0.5.5.
+reason = "crypto-bigint 0.5.5 only; fixed in 0.7.6 but elliptic-curve 0.13.8 pins ^0.5 (semver-incompatible); await upstream RustCrypto bump"
+
+[[PackageOverrides]]
+name = "humantime"
+version = "2.3.0"
+ecosystem = "crates.io"
+ignore = true
+# RUSTSEC-2026-0542. humantime wraps chrono, so it inherited chrono's
+# unmaintained status; all versions are affected and there is no fixed
+# release. Transitive through tarpc 0.29.0 -> solana-banks-{client,interface,
+# server}, the RPC side of the vendored solana-program-test harness.
+reason = "humantime 2.3.0 only, unmaintained with no fixed release (inherits chrono); transitive via tarpc -> solana-banks-*"
+
+[[PackageOverrides]]
+name = "pin-utils"
+version = "0.1.0"
+ecosystem = "crates.io"
+ignore = true
+# RUSTSEC-2026-0441. Upstream was archived on 2026-10-01 after 0.1.1, so all
+# versions are affected and 0.1.1 is not a fix. Transitive through hyper 1.8.1,
+# which reqwest, hyper-util and hyper-rustls all pull in, so this one is NOT
+# dev-only. The crate is two macros (`pin_mut!`, `unsafe_pinned!`); the stated
+# remedy is for hyper to adopt core::pin::pin!, which is upstream work.
+reason = "pin-utils 0.1.0 only, unmaintained (repo archived 2026-10-01, no fixed release); transitive via hyper 1.8.1"
