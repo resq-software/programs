@@ -42,19 +42,38 @@ HEAD_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
 #
 # Clippy compiles the *working tree*, so it can only ever speak for what is
 # checked out. Rather than pretend otherwise, scope conservatively: lint
-# whenever a pushed ref is something other than HEAD, and use the cheap
+# whenever a pushed branch is something other than HEAD, and use the cheap
 # file-diff skip only when the push is exactly the branch in hand.
+#
+# Only refs/heads/* records are considered. A tag carries no working tree to
+# compile, and an annotated tag's local_sha is the tag *object*, which never
+# equals HEAD_SHA -- so treating tag records as branch records made every
+# `git push --tags` compile the workspace and fail on unrelated clippy output.
 run_check=0
 scoped=1
+saw_branch_ref=0
 if [ ! -t 0 ]; then
-    while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    while read -r local_ref local_sha _remote_ref _remote_sha; do
         [ -z "$local_sha" ] && continue
         [ "$local_sha" = "$ZERO_SHA" ] && continue   # deletion: nothing to compile
+        case "$local_ref" in
+            refs/heads/*) saw_branch_ref=1 ;;
+            *) continue ;;                           # tag/note: nothing to lint
+        esac
         if [ "$local_sha" != "$HEAD_SHA" ]; then
             scoped=0
             run_check=1
         fi
     done
+else
+    # Invoked by hand rather than by git, so there are no ref records to read.
+    # Fall back to the checked-out branch, which is what the diff below scopes.
+    saw_branch_ref=1
+fi
+
+if [ "$saw_branch_ref" = "0" ]; then
+    echo "  Rust: no branch pushed, skipping workspace check"
+    exit 0
 fi
 
 if [ "$scoped" = "1" ]; then
