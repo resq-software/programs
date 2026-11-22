@@ -1,3 +1,19 @@
+<!--
+  Copyright 2026 ResQ Systems, Inc.
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+-->
+
 # Git Hooks — ResQ Programs
 
 This directory contains the project's git hooks. They enforce code quality, security, and workflow conventions for the ResQ Solana/Anchor programs (Rust/Bun).
@@ -16,14 +32,29 @@ The setup script sets `core.hooksPath` to `.git-hooks` and makes all hooks execu
 
 ## Active Hooks
 
+These are the canonical ResQ hooks, owned by
+[`resq-software/crates`](https://github.com/resq-software/crates/tree/master/crates/resq-cli/templates/git-hooks)
+and installed by `resq hooks update`. They are canonical shims: each keeps the
+validation and reporting specific to its own hook, hands the heavier checks to
+the `resq` binary where there are any, and then runs an executable repo-owned
+`local-*` override. Editing them here only produces drift.
+
 | Hook | Purpose |
 |------|---------|
-| `pre-commit` | Large file guard (1 MB limit), secrets scan (gitleaks / grep fallback), `cargo fmt --all -- --check` on staged `.rs` files |
+| `pre-commit` | Delegates to `resq pre-commit` — copyright headers, large-file guard, secret scan, dependency audit, per-language formatting |
 | `commit-msg` | Conventional Commits format validation; blocks `fixup!`/`squash!`/WIP on `main` |
 | `prepare-commit-msg` | Prepends ticket reference (e.g., `[PROJ-123]`) extracted from branch name |
-| `pre-push` | Force-push guard on `main`, branch naming convention, `cargo check --workspace` on changed Rust/Anchor files |
-| `post-checkout` | Notifies on `Cargo.lock` changes; auto `bun install` when `bun.lockb` changes between branches |
-| `post-merge` | Notifies on `Cargo.lock` changes; auto `bun install` when `bun.lockb` changes after a merge |
+| `pre-push` | Force-push guard and branch-naming rule, both applied to the ref being **pushed to**; then runs `local-pre-push` |
+| `post-checkout` | **Reports** changed `Cargo.lock` / `bun.lock` / `uv.lock` / `flake.lock` and the command to run; then runs `local-post-checkout` |
+| `post-merge` | **Reports** the same lockfile changes after a merge; then runs `local-post-merge` |
+
+| Local hook | Purpose |
+|------|---------|
+| `local-pre-push` | `cargo check --workspace` when Rust/Anchor files changed. Skip with `SKIP_CARGO_CHECK=1` |
+
+The lockfile hooks report rather than installing for you. A hook that mutates
+the working tree during a checkout is a surprise, and the dependency state you
+want after switching branches is not always the one the lockfile names.
 
 ## Bypassing Hooks
 

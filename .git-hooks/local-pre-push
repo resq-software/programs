@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+
+# Copyright 2026 ResQ Systems, Inc.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Repo-specific pre-push — runs after the canonical ResQ pre-push hook, which
+# execs this file when it exists.
+#
+# The canonical hook is language-agnostic on purpose: it guards branch naming
+# and force-pushes to main, and delegates anything needing a toolchain to here.
+# Rust/Anchor validation therefore lives in this file rather than in the shared
+# template, which is also what `.git-hooks/README.md` promises for `pre-push`.
+#
+# Skip with SKIP_CARGO_CHECK=1 for a push that cannot affect compilation.
+set -euo pipefail
+
+[ "${SKIP_CARGO_CHECK:-0}" = "1" ] && { echo "  Rust: skipped (SKIP_CARGO_CHECK=1)"; exit 0; }
+
+if ! command -v cargo >/dev/null 2>&1; then
+    echo "  Rust: cargo not found, skipping workspace check"
+    exit 0
+fi
+
+ZERO_SHA="0000000000000000000000000000000000000000"
+HEAD_SHA=$(git rev-parse HEAD 2>/dev/null || echo "")
+
+# The canonical hook forwards git's ref records, so read them rather than
+# assuming the push is of the checked-out branch: `git push origin feat/rust`
+# from elsewhere, or `git push --all`, sends refs this hook would never see by
+# looking at HEAD alone.
+#
+# Clippy compiles the *working tree*, so it can only ever speak for what is
+# checked out. Rather than pretend otherwise, scope conservatively: lint
+# whenever a pushed branch is something other than HEAD, and use the cheap
+# file-diff skip only when the push is exactly the branch in hand.
+#
+# Only refs/heads/* records are considered. A tag carries no working tree to
+# compile, and an annotated tag's local_sha is the tag *object*, which never
+# equals HEAD_SHA -- so treating tag records as branch records made every
+# `git push --tags` compile the workspace and fail on unrelated clippy output.
+run_check=0
+scoped=1
+saw_branch_ref=0
+head_dests=0
+dest_sha=""
+if [ ! -t 0 ]; then
+    while read -r _local_ref local_sha remote_ref remote_sha; do
+        [ -z "$local_sha" ] && continue
+        [ "$local_sha" = "$ZERO_SHA" ] && continue   # deletion: nothing to compile
+        # Classify by the DESTINATION ref, not the source. For
+        # `git push origin "$(git rev-parse HEAD):refs/heads/x"` git passes a raw
+        # object name as <local-ref>, which no refs/heads/* pattern matches --
+        # filtering on it would discard a real branch update and skip the lint.
+        # <remote-ref> is always a full refname.
+        case "$remote_ref" in
+            refs/heads/*) saw_branch_ref=1 ;;
+            *) continue ;;                           # tag/note: nothing to lint
+        esac
+        if [ "$local_sha" != "$HEAD_SHA" ]; then
+            scoped=0
+            run_check=1
+        else
+            head_dests=$((head_dests + 1))
+            dest_sha="$remote_sha"
+        fi
+    done
+else
+    # Invoked by hand rather than by git, so there are no ref records to read.
+    # Fall back to the checked-out branch, which is what the diff below scopes.
+    saw_branch_ref=1
+fi
+
+if [ "$saw_branch_ref" = "0" ]; then
+    echo "  Rust: no branch pushed, skipping workspace check"
+    exit 0
+fi
+
+# HEAD going to more than one branch: the destinations can be at different tips,
+# so there is no single base to diff against. Lint rather than pick one.
+[ "$head_dests" -gt 1 ] && run_check=1
+
+if [ "$scoped" = "1" ]; then
+    REMOTE="${1:-origin}"
+    # Diff against the PUSH DESTINATION, not the tracking branch. `git push backup
+    # feat/rust` can carry Rust changes the upstream already has, and @{upstream}
+    # names the tracking branch, which need not be where this push is going. git
+    # hands us the destination's current tip as <remote-sha> on stdin.
+    BASE=""
+    if [ -n "$dest_sha" ]; then
+        if [ "$dest_sha" = "$ZERO_SHA" ]; then
+            run_check=1                              # new branch there: all of it is new
+        elif git cat-file -e "${dest_sha}^{commit}" 2>/dev/null; then
+            BASE="$dest_sha"
+        else
+            run_check=1                              # destination tip not held locally
+        fi
+    else
+        # No usable record (hook run by hand): tracking branch, else the remote's main.
+        BASE=$(git rev-parse --abbrev-ref "@{upstream}" 2>/dev/null || echo "$REMOTE/main")
+    fi
+
+    if [ -n "$BASE" ]; then
+        if CHANGED_RS=$(git diff --name-only "$BASE"...HEAD -- '*.rs' 'Cargo.toml' 'Cargo.lock' 2>/dev/null); then
+            [ -n "$CHANGED_RS" ] && run_check=1
+        else
+            # The range would not resolve -- shallow clone, missing object. Fail
+            # toward running the check rather than silently skipping it.
+            run_check=1
+        fi
+    fi
+fi
+
+if [ "$run_check" = "1" ]; then
+    # Clippy, not `cargo check`: AGENTS.md names
+    # `cargo clippy --workspace -- -D warnings` as this repo's lint gate, and
+    # `cargo check` passes happily on the warnings clippy exists to reject.
+    echo "  Rust: cargo clippy --workspace -- -D warnings"
+    if ! cargo clippy --workspace --quiet -- -D warnings; then
+        echo "❌ cargo clippy failed. Fix the warnings before pushing."
+        echo "   Override with:  git push --no-verify"
+        exit 1
+    fi
+    echo "✅ Rust workspace OK"
+fi
